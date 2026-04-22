@@ -81,6 +81,8 @@ services:
 
 volumes:
   postgres_data:
+    external: true
+    name: lyrics-quiz_postgres_data
 
 networks:
   app:
