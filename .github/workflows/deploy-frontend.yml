@@ -1,0 +1,22 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+
+jobs:
+  deploy-frontend:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Frontend Container
+        run: |
+          cd /appdata/lyricus
+          docker compose up -d --build frontend
+          docker image prune -f
