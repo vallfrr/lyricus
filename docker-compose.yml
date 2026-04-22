@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lyricus-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lyricus
+      POSTGRES_USER: lyricus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lyricus_dev}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app
+
+  redis:
+    image: redis:7-alpine
+    container_name: lyricus-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    networks:
+      - app
+
+  backend:
+    build: ./backend
+    container_name: lyricus-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://lyricus:${POSTGRES_PASSWORD:-lyricus_dev}@postgres:5432/lyricus
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-prod}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3000/api/auth/callback}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+      DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-http://localhost:3000/api/auth/discord/callback}
+      # APPLE_CLIENT_ID: ${APPLE_CLIENT_ID}
+      # APPLE_TEAM_ID: ${APPLE_TEAM_ID}
+      # APPLE_KEY_ID: ${APPLE_KEY_ID}
+      # APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY}
+      # APPLE_REDIRECT_URI: ${APPLE_REDIRECT_URI}
+      # FACEBOOK_APP_ID: ${FACEBOOK_APP_ID}
+      # FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET}
+      # FACEBOOK_REDIRECT_URI: ${FACEBOOK_REDIRECT_URI}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
+      SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-http://localhost:3000/api/integrations/spotify/callback}
+      # DEEZER_APP_ID: ${DEEZER_APP_ID}
+      # DEEZER_APP_SECRET: ${DEEZER_APP_SECRET}
+      # DEEZER_REDIRECT_URI: ${DEEZER_REDIRECT_URI}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - app
+
+  adminer:
+    image: adminer:4-standalone
+    container_name: lyricus-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - app
+
+  frontend:
+    build: ./frontend
+    container_name: lyricus-frontend
+    restart: unless-stopped
+    environment:
+      PORT: "80"
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - app
+      - web_network
+
+volumes:
+  postgres_data:
+
+networks:
+  app:
+    driver: bridge
+  web_network:
+    external: true

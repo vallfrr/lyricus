@@ -1,0 +1,256 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── Light (default) ──────────────────────────────────────── */
+  :root,
+  [data-theme="light"] {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 4%;
+    --card: 0 0% 99%;
+    --card-foreground: 0 0% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 0 0% 4%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 4%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 94%;
+    --accent-foreground: 0 0% 4%;
+    --border: 0 0% 82%;
+    --input: 0 0% 100%;
+    --ring: 0 0% 15%;
+    --radius: 0rem;
+  }
+
+  /* ── Dark ─────────────────────────────────────────────────── */
+  .dark,
+  [data-theme="dark"] {
+    --background: 0 0% 5%;
+    --foreground: 0 0% 92%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 92%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 92%;
+    --primary: 0 0% 92%;
+    --primary-foreground: 0 0% 5%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 92%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 50%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 92%;
+    --border: 0 0% 20%;
+    --input: 0 0% 5%;
+    --ring: 0 0% 60%;
+    --radius: 0rem;
+  }
+
+  /* ── Catppuccin Mocha ─────────────────────────────────────── */
+  [data-theme="catppuccin-mocha"] {
+    --background: 240 21% 15%;
+    --foreground: 226 64% 88%;
+    --card: 240 21% 17%;
+    --card-foreground: 226 64% 88%;
+    --popover: 240 21% 17%;
+    --popover-foreground: 226 64% 88%;
+    --primary: 267 83% 81%;
+    --primary-foreground: 240 21% 15%;
+    --secondary: 237 16% 23%;
+    --secondary-foreground: 226 64% 88%;
+    --muted: 237 16% 23%;
+    --muted-foreground: 228 21% 66%;
+    --accent: 237 16% 27%;
+    --accent-foreground: 226 64% 88%;
+    --border: 237 11% 31%;
+    --input: 237 16% 23%;
+    --ring: 267 83% 81%;
+    --radius: 0rem;
+  }
+
+  /* ── Catppuccin Latte ─────────────────────────────────────── */
+  [data-theme="catppuccin-latte"] {
+    --background: 220 23% 95%;
+    --foreground: 234 16% 35%;
+    --card: 220 23% 97%;
+    --card-foreground: 234 16% 35%;
+    --popover: 220 23% 97%;
+    --popover-foreground: 234 16% 35%;
+    --primary: 266 85% 58%;
+    --primary-foreground: 220 23% 95%;
+    --secondary: 223 16% 88%;
+    --secondary-foreground: 234 16% 35%;
+    --muted: 223 16% 88%;
+    --muted-foreground: 233 13% 55%;
+    --accent: 223 16% 91%;
+    --accent-foreground: 234 16% 35%;
+    --border: 223 12% 78%;
+    --input: 220 23% 95%;
+    --ring: 266 85% 58%;
+    --radius: 0rem;
+  }
+
+  /* ── Nord ─────────────────────────────────────────────────── */
+  [data-theme="nord"] {
+    --background: 220 16% 22%;
+    --foreground: 218 27% 94%;
+    --card: 220 16% 25%;
+    --card-foreground: 218 27% 94%;
+    --popover: 220 16% 25%;
+    --popover-foreground: 218 27% 94%;
+    --primary: 213 32% 52%;
+    --primary-foreground: 218 27% 94%;
+    --secondary: 220 15% 31%;
+    --secondary-foreground: 218 27% 94%;
+    --muted: 220 15% 31%;
+    --muted-foreground: 218 16% 62%;
+    --accent: 220 15% 34%;
+    --accent-foreground: 218 27% 94%;
+    --border: 220 14% 33%;
+    --input: 220 15% 31%;
+    --ring: 213 32% 52%;
+    --radius: 0rem;
+  }
+
+  /* ── Gruvbox Dark ─────────────────────────────────────────── */
+  [data-theme="gruvbox-dark"] {
+    --background: 0 0% 16%;
+    --foreground: 43 59% 81%;
+    --card: 25 7% 19%;
+    --card-foreground: 43 59% 81%;
+    --popover: 25 7% 19%;
+    --popover-foreground: 43 59% 81%;
+    --primary: 40 73% 49%;
+    --primary-foreground: 0 0% 16%;
+    --secondary: 20 5% 23%;
+    --secondary-foreground: 43 59% 81%;
+    --muted: 20 5% 23%;
+    --muted-foreground: 25 11% 51%;
+    --accent: 20 5% 27%;
+    --accent-foreground: 43 59% 81%;
+    --border: 20 5% 26%;
+    --input: 20 5% 23%;
+    --ring: 40 73% 49%;
+    --radius: 0rem;
+  }
+
+  /* ── Gruvbox Light ────────────────────────────────────────── */
+  [data-theme="gruvbox-light"] {
+    --background: 43 59% 91%;
+    --foreground: 0 0% 16%;
+    --card: 43 59% 93%;
+    --card-foreground: 0 0% 16%;
+    --popover: 43 59% 93%;
+    --popover-foreground: 0 0% 16%;
+    --primary: 28 80% 39%;
+    --primary-foreground: 43 59% 91%;
+    --secondary: 46 23% 80%;
+    --secondary-foreground: 0 0% 16%;
+    --muted: 46 23% 80%;
+    --muted-foreground: 38 22% 44%;
+    --accent: 46 23% 83%;
+    --accent-foreground: 0 0% 16%;
+    --border: 46 18% 72%;
+    --input: 43 59% 91%;
+    --ring: 28 80% 39%;
+    --radius: 0rem;
+  }
+
+  /* ── Dracula ──────────────────────────────────────────────── */
+  [data-theme="dracula"] {
+    --background: 231 15% 18%;
+    --foreground: 60 30% 96%;
+    --card: 232 14% 21%;
+    --card-foreground: 60 30% 96%;
+    --popover: 232 14% 21%;
+    --popover-foreground: 60 30% 96%;
+    --primary: 265 89% 78%;
+    --primary-foreground: 231 15% 18%;
+    --secondary: 232 14% 25%;
+    --secondary-foreground: 60 30% 96%;
+    --muted: 232 14% 25%;
+    --muted-foreground: 225 27% 55%;
+    --accent: 232 14% 29%;
+    --accent-foreground: 60 30% 96%;
+    --border: 232 14% 30%;
+    --input: 232 14% 25%;
+    --ring: 265 89% 78%;
+    --radius: 0rem;
+  }
+
+  /* ── Tokyo Night ──────────────────────────────────────────── */
+  [data-theme="tokyo-night"] {
+    --background: 237 21% 12%;
+    --foreground: 225 27% 75%;
+    --card: 232 18% 15%;
+    --card-foreground: 225 27% 75%;
+    --popover: 232 18% 15%;
+    --popover-foreground: 225 27% 75%;
+    --primary: 217 72% 76%;
+    --primary-foreground: 237 21% 12%;
+    --secondary: 232 15% 18%;
+    --secondary-foreground: 225 27% 75%;
+    --muted: 232 15% 18%;
+    --muted-foreground: 225 21% 45%;
+    --accent: 232 15% 22%;
+    --accent-foreground: 225 27% 75%;
+    --border: 232 12% 22%;
+    --input: 232 15% 18%;
+    --ring: 217 72% 76%;
+    --radius: 0rem;
+  }
+
+  /* ── Rosé Pine ────────────────────────────────────────────── */
+  [data-theme="rose-pine"] {
+    --background: 249 22% 12%;
+    --foreground: 245 50% 91%;
+    --card: 249 18% 15%;
+    --card-foreground: 245 50% 91%;
+    --popover: 249 18% 15%;
+    --popover-foreground: 245 50% 91%;
+    --primary: 320 51% 72%;
+    --primary-foreground: 249 22% 12%;
+    --secondary: 249 22% 19%;
+    --secondary-foreground: 245 50% 91%;
+    --muted: 249 22% 19%;
+    --muted-foreground: 249 10% 53%;
+    --accent: 249 22% 22%;
+    --accent-foreground: 245 50% 91%;
+    --border: 249 22% 24%;
+    --input: 249 22% 19%;
+    --ring: 320 51% 72%;
+    --radius: 0rem;
+  }
+
+  /* ── Rosé Pine Dawn ───────────────────────────────────────── */
+  [data-theme="rose-pine-dawn"] {
+    --background: 32 57% 95%;
+    --foreground: 248 27% 39%;
+    --card: 32 57% 97%;
+    --card-foreground: 248 27% 39%;
+    --popover: 32 57% 97%;
+    --popover-foreground: 248 27% 39%;
+    --primary: 343 35% 57%;
+    --primary-foreground: 32 57% 95%;
+    --secondary: 35 38% 88%;
+    --secondary-foreground: 248 27% 39%;
+    --muted: 35 38% 88%;
+    --muted-foreground: 248 15% 59%;
+    --accent: 35 38% 91%;
+    --accent-foreground: 248 27% 39%;
+    --border: 35 25% 80%;
+    --input: 32 57% 95%;
+    --ring: 343 35% 57%;
+    --radius: 0rem;
+  }
+
+  * { @apply border-border box-border; }
+  body { @apply bg-background text-foreground font-mono; }
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(var(--border)); }
