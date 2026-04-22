@@ -138,4 +138,3 @@ async def discard_session(request, session_id):
         raise SanicException("Unauthorized", status_code=401)
     await db.delete_game_session(request.app.ctx.pool, str(session_id), user["sub"])
     return json({"success": True})
-
