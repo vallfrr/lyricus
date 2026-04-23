@@ -30,8 +30,10 @@ STOP_WORDS = {
 }
 
 
+_LIGATURES = str.maketrans({"œ": "oe", "æ": "ae"})
+
 def normalize(word: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", word.lower())
+    nfkd = unicodedata.normalize("NFKD", word.lower().translate(_LIGATURES))
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 

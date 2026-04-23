@@ -15,6 +15,8 @@ export function cn(...inputs) {
 export function normalize(str) {
   return str
     .toLowerCase()
+    .replace(/œ/g, "oe")
+    .replace(/æ/g, "ae")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")   // remove accents
     .replace(/['\u2019\u0060\u00b4\u2018]/g, "") // remove apostrophes
