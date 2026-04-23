@@ -197,27 +197,27 @@ export default function UserProfileClient() {
                           if (g.cover) p.set("cover", g.cover);
                           router.push(`/?${p}`);
                         }}
-                        className="flex items-center gap-3 border-b border-border last:border-0 px-3 py-2.5 hover:bg-accent transition-colors cursor-pointer"
+                        className="grid grid-cols-[auto_1fr_6rem_4rem_5rem] items-center border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
                       >
-                        {g.cover
-                          ? <img src={g.cover} alt={g.title} width={28} height={28} className="w-7 h-7 object-cover border border-border shrink-0" />
-                          : <div className="w-7 h-7 border border-border bg-secondary shrink-0" />
-                        }
-                        <div className="flex-1 flex flex-col gap-0.5 min-w-0">
-                          <span className="text-xs font-medium truncate">{g.title}</span>
+                        <div className="p-2 shrink-0">
+                          {g.cover
+                            ? <img src={g.cover} alt={g.title} width={32} height={32} className="w-8 h-8 object-cover border border-border" />
+                            : <div className="w-8 h-8 border border-border bg-secondary" />
+                          }
+                        </div>
+                        <div className="px-2 py-2.5 min-w-0">
+                          <p className="text-xs font-medium truncate">{g.title}</p>
                           <Link
                             href={`/artist/${encodeURIComponent(cleanArtist(g.artist))}`}
-                            className="text-[11px] text-muted-foreground truncate hover:underline"
+                            className="text-[10px] text-muted-foreground truncate hover:underline block"
                             onClick={(e) => e.stopPropagation()}
                           >{g.artist}</Link>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 text-xs">
-                          <span className={cn("tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
-                            {g.difficulty}
-                          </span>
-                          <span className="tabular-nums font-medium">{pct}%</span>
-                          <span className="text-muted-foreground tabular-nums">{date}</span>
+                        <div className={cn("px-2 py-2.5 text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
+                          {g.difficulty}
                         </div>
+                        <div className="px-2 py-2.5 text-xs tabular-nums font-medium">{pct}%</div>
+                        <div className="px-2 py-2.5 text-xs tabular-nums text-muted-foreground">{date}</div>
                       </div>
                     );
                   })}
