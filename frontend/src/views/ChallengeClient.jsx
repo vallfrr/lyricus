@@ -4,10 +4,12 @@ import { useState } from "react";
 import NavBar from "@/components/NavBar";
 import DifficultySelector from "@/components/DifficultySelector";
 import Footer from "@/components/Footer";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function ChallengeClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { t } = useI18n();
 
   const artist  = searchParams.get("artist") ?? "";
   const title   = searchParams.get("title") ?? "";
@@ -43,9 +45,9 @@ export default function ChallengeClient() {
 
       <main className="flex-1 max-w-sm mx-auto w-full px-4 py-12 flex flex-col gap-8">
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">défi reçu</span>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("challenge.title")}</span>
           <h1 className="text-xl font-semibold tracking-tight">
-            {from ? `${from} te lance un défi` : "Un défi t'attend"}
+            {from ? `${from} te lance un défi` : t("challenge.generic")}
           </h1>
         </div>
 
@@ -65,13 +67,13 @@ export default function ChallengeClient() {
         <div className="border border-border px-4 py-4 flex flex-col items-center gap-1">
           <span className="text-3xl font-bold tabular-nums">{challengeScore}%</span>
           <span className="text-xs text-muted-foreground">
-            {from ? `score de ${from}` : "score à battre"} · {challengeTotal} mots
+            {from ? `score de ${from}` : t("challenge.score.label")} · {challengeTotal} {t("challenge.words")}
           </span>
         </div>
 
         {/* Mode selector (difficulty is fixed by challenger) */}
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">mode</span>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("challenge.mode")}</span>
           <div className="flex gap-2">
             {["normal", "flow"].map((m) => (
               <button
@@ -93,14 +95,14 @@ export default function ChallengeClient() {
           onClick={handleAccept}
           className="w-full h-10 border border-foreground bg-foreground text-background text-sm font-medium hover:bg-foreground/85 transition-colors"
         >
-          relever le défi →
+          {t("challenge.accept")}
         </button>
 
         <button
           onClick={() => router.push("/")}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
         >
-          ignorer
+          {t("challenge.ignore")}
         </button>
       </main>
 

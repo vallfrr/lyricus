@@ -29,7 +29,7 @@ function RankBadge({ rank }) {
   );
 }
 
-function Row({ row }) {
+function Row({ row, youLabel }) {
   return (
     <div
       className={cn(
@@ -52,7 +52,7 @@ function Row({ row }) {
           )}
         >
           {row.name}
-          {row.is_me && <span className="ml-1 text-[10px] text-muted-foreground">(toi)</span>}
+          {row.is_me && <span className="ml-1 text-[10px] text-muted-foreground">({youLabel})</span>}
         </Link>
       </div>
       <div className="px-3 py-2.5 flex items-center text-xs tabular-nums text-muted-foreground">
@@ -106,13 +106,13 @@ export default function LeaderboardClient() {
           {stats && (
             <div className="grid grid-cols-3 border border-border">
               {[
-                { label: "parties jouées", value: stats.total_games },
-                { label: "joueurs", value: stats.total_players },
-                { label: "chansons", value: stats.total_songs },
+                { labelKey: "lb.stat.games", value: stats.total_games },
+                { labelKey: "lb.stat.players", value: stats.total_players },
+                { labelKey: "lb.stat.songs", value: stats.total_songs },
               ].map((s) => (
-                <div key={s.label} className="px-4 py-3 border-r border-border last:border-r-0 flex flex-col gap-0.5">
+                <div key={s.labelKey} className="px-4 py-3 border-r border-border last:border-r-0 flex flex-col gap-0.5">
                   <span className="text-lg font-semibold tabular-nums">{s.value}</span>
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{s.label}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t(s.labelKey)}</span>
                 </div>
               ))}
             </div>
@@ -149,14 +149,14 @@ export default function LeaderboardClient() {
                 </div>
               ))}
             </div>
-            {top.map((row) => <Row key={row.rank} row={row} />)}
+            {top.map((row) => <Row key={row.rank} row={row} youLabel={t("lb.you")} />)}
 
             {myRow && (
               <>
                 <div className="px-3 py-1.5 text-[10px] text-muted-foreground border-t border-dashed border-border text-center">
                   ···
                 </div>
-                <Row row={myRow} />
+                <Row row={myRow} youLabel={t("lb.you")} />
               </>
             )}
           </div>

@@ -120,7 +120,7 @@ export default function HistoryClient() {
                       <p className="text-xs font-medium truncate">{g.title}</p>
                       <p className="text-[10px] text-muted-foreground truncate">
                         <Link href={`/artist/${encodeURIComponent(cleanArtist(g.artist))}`} className="hover:underline">{g.artist}</Link>
-                        {" · "}{g.difficulty} · {g.mode}
+                        {" · "}{DIFF_LABELS[g.difficulty] ?? g.difficulty} · {g.mode}
                       </p>
                     </div>
                     {(progressStr || timerStr) && (

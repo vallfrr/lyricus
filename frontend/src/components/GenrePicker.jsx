@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/contexts/I18nContext";
 
 const MAIN_NAMES = ["Pop", "Rap/Hip Hop", "Hip Hop", "Rock", "Électronique", "Electronic", "R&B"];
 
 export default function GenrePicker({ onSelect, loading: parentLoading }) {
+  const { t } = useI18n();
   const [genres, setGenres] = useState([]);
   const [loadingGenres, setLoadingGenres] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -18,7 +20,7 @@ export default function GenrePicker({ onSelect, loading: parentLoading }) {
       .finally(() => setLoadingGenres(false));
   }, []);
 
-  if (loadingGenres) return <p className="text-xs text-muted-foreground">chargement...</p>;
+  if (loadingGenres) return <p className="text-xs text-muted-foreground">{t("genre.loading")}</p>;
 
   const main = genres.filter((g) => MAIN_NAMES.some((n) => g.name.toLowerCase().includes(n.toLowerCase())));
   const rest = genres.filter((g) => !main.includes(g));
