@@ -7,6 +7,7 @@ import SearchBar from "@/components/SearchBar";
 import GenrePicker from "@/components/GenrePicker";
 import DifficultySelector from "@/components/DifficultySelector";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAudio } from "@/contexts/AudioContext";
 import { LOCALE_META } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import Footer from "@/components/Footer";
@@ -134,6 +135,7 @@ export default function HomeClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t, locale } = useI18n();
+  const { stop } = useAudio();
   const [difficulty, setDifficulty] = useState("medium");
   const [mode, setMode] = useState("normal");
   const [selectedSong, setSelectedSong] = useState(null);
@@ -171,6 +173,7 @@ export default function HomeClient() {
 
   function handleStart() {
     if (!selectedSong) return;
+    stop();
     const p = new URLSearchParams({ artist: selectedSong.artist, title: selectedSong.title, difficulty, mode });
     if (selectedSong.album) p.set("album", selectedSong.album);
     if (selectedSong.cover) p.set("cover", selectedSong.cover);
