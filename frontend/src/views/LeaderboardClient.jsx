@@ -33,7 +33,7 @@ function Row({ row }) {
   return (
     <div
       className={cn(
-        "grid grid-cols-[2rem_1fr_4rem_4rem_4rem] border-b border-border last:border-0 transition-colors",
+        "grid grid-cols-[2rem_1fr_4rem_4rem_5.5rem] border-b border-border last:border-0 transition-colors",
         row.is_me
           ? "bg-foreground/5 border-l-2 border-l-foreground"
           : "hover:bg-accent"
@@ -142,7 +142,7 @@ export default function LeaderboardClient() {
 
         {!loading && top.length > 0 && (
           <div className="border border-border">
-            <div className="grid grid-cols-[2rem_1fr_4rem_4rem_4rem] border-b border-border">
+            <div className="grid grid-cols-[2rem_1fr_4rem_4rem_5.5rem] border-b border-border">
               {["#", t("lb.col.player"), t("lb.col.games"), t("lb.col.avg"), t("lb.col.best")].map((h, i) => (
                 <div key={i} className="px-3 py-1.5 text-[10px] text-muted-foreground uppercase tracking-widest">
                   {h}

@@ -251,10 +251,9 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
           flash ? "border-foreground" : "border-border"
         )}>
           <div className="max-w-2xl mx-auto flex items-center gap-2">
-            <span className="text-xs text-muted-foreground shrink-0 tabular-nums w-12">
+            <span className="text-xs text-muted-foreground shrink-0 tabular-nums text-right">
               {revealed.size}/{totalBlanks}
             </span>
-
             {inputMode === "type" ? (
               <Input
                 ref={inputRef}
@@ -298,6 +297,8 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
             <button onClick={handleFinish} className="border border-border px-3 h-9 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors shrink-0">
               {t("flow.end")}
             </button>
+
+
           </div>
         </div>
       ) : (

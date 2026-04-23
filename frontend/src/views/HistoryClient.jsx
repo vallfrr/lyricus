@@ -175,7 +175,7 @@ export default function HistoryClient() {
               return (
                 <div
                   key={g.id}
-                  className="grid grid-cols-[auto_1fr_4rem_4rem_3rem] items-center gap-0 border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
+                  className="grid grid-cols-[auto_1fr_6rem_4rem_4rem] items-center gap-0 border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
                   onClick={() => {
                     const p = new URLSearchParams({ artist: g.artist, title: g.title });
                     if (g.album) p.set("album", g.album);
