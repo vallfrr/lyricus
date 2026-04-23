@@ -165,7 +165,7 @@ export default function HomeClient() {
     setSelectedSong(null);
     try {
       const res = await fetch(`/api/random?genre_id=${genre.id}&count=5`);
-      if (!res.ok) throw new Error("aucune chanson trouvée pour ce genre");
+      if (!res.ok) throw new Error(t("error.song.notfound"));
       setSuggestedSongs(await res.json());
     } catch (e) { setError(e.message); }
     finally { setLoadingRandom(false); }

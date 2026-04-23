@@ -388,19 +388,19 @@ export default function GameClient() {
       {/* Resume banner */}
       {savedProgress && !resumeDecided && gameData && (
         <div className="border-b border-border bg-secondary/40 px-4 py-3 flex items-center justify-between gap-4 max-w-2xl mx-auto w-full">
-          <span className="text-xs text-muted-foreground">partie en cours trouvée — reprendre ?</span>
+          <span className="text-xs text-muted-foreground">{t("game.resume.prompt")}</span>
           <div className="flex gap-2 shrink-0">
             <button
               onClick={handleResume}
               className="text-xs border border-foreground px-3 py-1 hover:bg-foreground hover:text-background transition-colors"
             >
-              reprendre
+              {t("game.resume")}
             </button>
             <button
               onClick={handleNewGame}
               className="text-xs border border-border px-3 py-1 text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
             >
-              recommencer
+              {t("game.restart")}
             </button>
           </div>
         </div>
@@ -453,7 +453,7 @@ export default function GameClient() {
                   <div className="text-muted-foreground self-center">vs</div>
                   <div className="flex flex-col items-center gap-0.5">
                     <span className="font-semibold">{theirPct}%</span>
-                    <span className="text-[10px] text-muted-foreground uppercase">{challengeFrom || "eux"}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase">{challengeFrom || t("game.challenge.them")}</span>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">

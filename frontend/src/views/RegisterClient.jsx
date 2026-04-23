@@ -5,13 +5,7 @@ import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import { cn } from "@/lib/utils";
 import { OAuthButton, GoogleSvg, DiscordSvg, AppleSvg, FacebookSvg } from "@/components/OAuthButtons";
-
-const RULES = [
-  { label: "8 caractères minimum", check: (p) => p.length >= 8 },
-  { label: "une majuscule",         check: (p) => /[A-Z]/.test(p) },
-  { label: "une minuscule",         check: (p) => /[a-z]/.test(p) },
-  { label: "un chiffre",            check: (p) => /\d/.test(p) },
-];
+import { useI18n } from "@/contexts/I18nContext";
 
 function EyeIcon({ open }) {
   return open ? (
@@ -30,6 +24,15 @@ function EyeIcon({ open }) {
 
 export default function RegisterClient() {
   const router = useRouter();
+  const { t } = useI18n();
+
+  const RULES = [
+    { key: "register.rule.length", check: (p) => p.length >= 8 },
+    { key: "register.rule.upper",  check: (p) => /[A-Z]/.test(p) },
+    { key: "register.rule.lower",  check: (p) => /[a-z]/.test(p) },
+    { key: "register.rule.digit",  check: (p) => /\d/.test(p) },
+  ];
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -45,8 +48,8 @@ export default function RegisterClient() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!allRulesMet) { setError("le mot de passe ne respecte pas les critères"); return; }
-    if (password !== confirm) { setError("les mots de passe ne correspondent pas"); return; }
+    if (!allRulesMet) { setError(t("register.error.password")); return; }
+    if (password !== confirm) { setError(t("register.error.mismatch")); return; }
 
     setError("");
     setLoading(true);
@@ -58,10 +61,10 @@ export default function RegisterClient() {
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "erreur"); return; }
+      if (!res.ok) { setError(data.error || t("auth.error")); return; }
       router.push("/setup");
     } catch {
-      setError("erreur réseau");
+      setError(t("auth.error.network"));
     } finally {
       setLoading(false);
     }
@@ -74,14 +77,14 @@ export default function RegisterClient() {
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-sm flex flex-col gap-6">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">créer un compte</h1>
-            <p className="text-xs text-muted-foreground mt-1">rejoins lyricus et sauvegarde tes scores</p>
+            <h1 className="text-xl font-semibold tracking-tight">{t("register.title")}</h1>
+            <p className="text-xs text-muted-foreground mt-1">{t("register.subtitle")}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <input
               type="email"
-              placeholder="adresse email"
+              placeholder={t("auth.email")}
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError(""); }}
               required
@@ -93,7 +96,7 @@ export default function RegisterClient() {
               <div className="relative">
                 <input
                   type={showPw ? "text" : "password"}
-                  placeholder="mot de passe"
+                  placeholder={t("auth.password")}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(""); }}
                   onFocus={() => setPwFocused(true)}
@@ -115,13 +118,13 @@ export default function RegisterClient() {
                 <div className="flex flex-col gap-0.5 px-1 pt-1">
                   {RULES.map((r) => (
                     <span
-                      key={r.label}
+                      key={r.key}
                       className={cn(
                         "text-[10px] transition-colors",
                         r.check(password) ? "text-foreground" : "text-muted-foreground"
                       )}
                     >
-                      {r.check(password) ? "✓" : "·"} {r.label}
+                      {r.check(password) ? "✓" : "·"} {t(r.key)}
                     </span>
                   ))}
                 </div>
@@ -132,7 +135,7 @@ export default function RegisterClient() {
               <div className="relative">
                 <input
                   type={showConfirm ? "text" : "password"}
-                  placeholder="confirmer le mot de passe"
+                  placeholder={t("register.confirm")}
                   value={confirm}
                   onChange={(e) => { setConfirm(e.target.value); setError(""); }}
                   required
@@ -154,7 +157,7 @@ export default function RegisterClient() {
                 </button>
               </div>
               {confirm.length > 0 && !confirmOk && (
-                <span className="text-[10px] text-muted-foreground px-1">les mots de passe ne correspondent pas</span>
+                <span className="text-[10px] text-muted-foreground px-1">{t("register.error.mismatch")}</span>
               )}
             </div>
 
@@ -167,27 +170,27 @@ export default function RegisterClient() {
               disabled={loading || !canSubmit}
               className="h-9 border border-foreground bg-foreground text-background text-sm font-medium hover:bg-foreground/85 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              {loading ? "..." : "créer mon compte"}
+              {loading ? "..." : t("register.submit")}
             </button>
           </form>
 
           <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
             <div className="flex-1 border-t border-border" />
-            ou
+            {t("home.or")}
             <div className="flex-1 border-t border-border" />
           </div>
 
           <div className="flex flex-col gap-2">
-            <OAuthButton href="/api/auth/google"  label="continuer avec Google"   icon={<GoogleSvg />} />
-            <OAuthButton href="/api/auth/discord" label="continuer avec Discord"  icon={<DiscordSvg />} />
-            <OAuthButton disabled label="continuer avec Apple"    icon={<AppleSvg />} />
-            <OAuthButton disabled label="continuer avec Facebook" icon={<FacebookSvg />} />
+            <OAuthButton href="/api/auth/google"  label={t("auth.oauth.google")}   icon={<GoogleSvg />} />
+            <OAuthButton href="/api/auth/discord" label={t("auth.oauth.discord")}  icon={<DiscordSvg />} />
+            <OAuthButton disabled label={t("auth.oauth.apple")}    icon={<AppleSvg />} />
+            <OAuthButton disabled label={t("auth.oauth.facebook")} icon={<FacebookSvg />} />
           </div>
 
           <p className="text-xs text-muted-foreground text-center">
-            déjà un compte ?{" "}
+            {t("register.has_account")}{" "}
             <Link href="/login" className="text-foreground hover:underline">
-              se connecter
+              {t("register.login")}
             </Link>
           </p>
         </div>

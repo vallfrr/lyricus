@@ -97,13 +97,13 @@ export default function SettingsClient() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setPlaylistError(data.error || "erreur d'ajout");
+        setPlaylistError(data.error || t("settings.playlist.error"));
       } else {
         setPlaylists(prev => [data, ...prev]);
         setPlaylistUrl("");
       }
     } catch {
-      setPlaylistError("erreur réseau");
+      setPlaylistError(t("auth.error.network"));
     } finally {
       setAddingPlaylist(false);
     }
@@ -148,7 +148,7 @@ export default function SettingsClient() {
   async function handleNameSubmit(e) {
     e.preventDefault();
     const trimmed = name.trim();
-    if (!USERNAME_RE.test(trimmed)) { setNameError("2–20 caractères, lettres, chiffres, _ - ."); return; }
+    if (!USERNAME_RE.test(trimmed)) { setNameError(t("settings.username.error")); return; }
     setNameSaving(true);
     setNameError("");
     setNameSuccess(false);
@@ -160,11 +160,11 @@ export default function SettingsClient() {
         body: JSON.stringify({ name: trimmed }),
       });
       const data = await res.json();
-      if (!res.ok) { setNameError(data.error || "erreur"); return; }
+      if (!res.ok) { setNameError(data.error || t("auth.error")); return; }
       await refreshUser();
       setNameSuccess(true);
     } catch {
-      setNameError("erreur réseau");
+      setNameError(t("auth.error.network"));
     } finally {
       setNameSaving(false);
     }
@@ -200,18 +200,18 @@ export default function SettingsClient() {
             <form onSubmit={handleAddPlaylist} className="flex gap-2">
               <Input
                 type="url"
-                placeholder="Lien Spotify ou Deezer"
+                placeholder={t("settings.playlist.placeholder")}
                 value={playlistUrl}
                 onChange={(e) => { setPlaylistUrl(e.target.value); setPlaylistError(""); }}
                 disabled={playlists.length >= 5 || addingPlaylist}
-                className="flex-1" 
+                className="flex-1"
               />
               <button
                 type="submit"
                 disabled={playlists.length >= 5 || !playlistUrl.trim() || addingPlaylist}
                 className="h-9 px-4 border border-foreground bg-foreground text-background text-xs hover:bg-foreground/85 transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
               >
-                {addingPlaylist ? "..." : "ajouter"}
+                {addingPlaylist ? "..." : t("settings.playlist.add")}
               </button>
             </form>
             {playlistError && <p className="text-[11px] text-muted-foreground">{playlistError}</p>}
@@ -324,17 +324,17 @@ export default function SettingsClient() {
         {/* Confidentialité & compte (logged-in only) */}
         {user && (
           <section className="flex flex-col gap-4">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">confidentialité</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("settings.privacy")}</span>
 
             {/* Email (info) */}
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">adresse email</span>
+              <span className="text-xs text-muted-foreground">{t("settings.email")}</span>
               <span className="text-sm font-mono text-foreground/80">{user.email}</span>
             </div>
 
             {/* Username */}
             <form onSubmit={handleNameSubmit} className="flex flex-col gap-2">
-              <span className="text-xs text-muted-foreground">pseudo</span>
+              <span className="text-xs text-muted-foreground">{t("settings.username")}</span>
               <div className="flex gap-2">
                 <Input
                   type="text"
@@ -351,35 +351,35 @@ export default function SettingsClient() {
                   disabled={nameSaving || name.trim().length < 2 || name.trim() === user.name}
                   className="h-9 px-4 border border-foreground bg-foreground text-background text-xs hover:bg-foreground/85 transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                 >
-                  {nameSaving ? "..." : nameSuccess ? "✓" : "enregistrer"}
+                  {nameSaving ? "..." : nameSuccess ? "✓" : t("settings.save")}
                 </button>
               </div>
               {nameError && <p className="text-[11px] text-muted-foreground">{nameError}</p>}
-              <p className="text-[10px] text-muted-foreground">2–20 caractères · lettres, chiffres, _ - .</p>
+              <p className="text-[10px] text-muted-foreground">{t("settings.username.hint")}</p>
             </form>
 
             {/* Public history toggle */}
             <div className="flex items-center justify-between border border-border px-4 py-3 gap-4">
               <div className="flex flex-col gap-0.5">
-                <span className="text-sm">historique public</span>
-                <span className="text-xs text-muted-foreground">permettre aux autres de voir tes parties récentes sur ton profil</span>
+                <span className="text-sm">{t("settings.history.public")}</span>
+                <span className="text-xs text-muted-foreground">{t("settings.history.public.desc")}</span>
               </div>
               <Toggle value={publicHistory} onChange={togglePublicHistory} />
             </div>
 
             {/* Connected providers */}
             <div className="flex flex-col gap-3">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-widest">connexions</span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("settings.connections")}</span>
 
               {/* Link feedback */}
               {linkSuccess && (
                 <p className="text-xs border border-border px-3 py-2">
-                  ✓ compte {linkSuccess === "google" ? "Google" : linkSuccess === "discord" ? "Discord" : linkSuccess} lié avec succès
+                  ✓ {linkSuccess === "google" ? "Google" : linkSuccess === "discord" ? "Discord" : linkSuccess} {t("settings.connected")}
                 </p>
               )}
               {linkError === "already_used" && (
                 <p className="text-xs border border-border px-3 py-2 text-muted-foreground">
-                  ce compte Google est déjà associé à un autre utilisateur
+                  {t("settings.link.error")}
                 </p>
               )}
 
@@ -389,13 +389,13 @@ export default function SettingsClient() {
                   <span className="text-sm">email / mot de passe</span>
                 </div>
                 {user.providers?.email ? (
-                  <span className="text-[10px] text-muted-foreground">connecté ✓</span>
+                  <span className="text-[10px] text-muted-foreground">{t("settings.connected")}</span>
                 ) : (
                   <a
                     href="/register"
                     className="text-xs border border-border px-3 py-1 hover:border-foreground transition-colors"
                   >
-                    configurer
+                    {t("settings.configure")}
                   </a>
                 )}
               </div>
@@ -408,9 +408,9 @@ export default function SettingsClient() {
                 <div key={key} className="flex items-center justify-between border border-border px-4 py-3 gap-4">
                   <div className="flex items-center gap-2">{icon}<span className="text-sm">{label}</span></div>
                   {user.providers?.[key] ? (
-                    <span className="text-[10px] text-muted-foreground">connecté ✓</span>
+                    <span className="text-[10px] text-muted-foreground">{t("settings.connected")}</span>
                   ) : (
-                    <a href={href} className="text-xs border border-border px-3 py-1 hover:border-foreground transition-colors">lier</a>
+                    <a href={href} className="text-xs border border-border px-3 py-1 hover:border-foreground transition-colors">{t("settings.link")}</a>
                   )}
                 </div>
               ))}
@@ -422,7 +422,7 @@ export default function SettingsClient() {
               ].map(({ label, icon }) => (
                 <div key={label} className="flex items-center justify-between border border-border border-dashed px-4 py-3 gap-4 opacity-40">
                   <div className="flex items-center gap-2">{icon}<span className="text-sm">{label}</span></div>
-                  <span className="text-[10px] text-muted-foreground">bientôt</span>
+                  <span className="text-[10px] text-muted-foreground">{t("settings.soon")}</span>
                 </div>
               ))}
             </div>
@@ -430,23 +430,23 @@ export default function SettingsClient() {
 
             {/* Delete account */}
             <div className="flex flex-col gap-3 mt-2">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-widest">zone de danger</span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("settings.danger")}</span>
 
               {deleteStep === 0 && (
                 <button
                   onClick={() => setDeleteStep(1)}
                   className="h-9 border border-border text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
                 >
-                  supprimer mon compte
+                  {t("settings.delete")}
                 </button>
               )}
 
               {deleteStep === 1 && (
                 <div className="border border-border p-4 flex flex-col gap-4">
                   <div className="flex flex-col gap-1">
-                    <span className="text-sm font-medium">supprimer ton compte ?</span>
+                    <span className="text-sm font-medium">{t("settings.delete.title")}</span>
                     <span className="text-xs text-muted-foreground">
-                      toutes tes données seront définitivement effacées : profil, historique, scores. cette action est irréversible.
+                      {t("settings.delete.desc")}
                     </span>
                   </div>
                   <div className="flex gap-2">
@@ -454,13 +454,13 @@ export default function SettingsClient() {
                       onClick={() => setDeleteStep(0)}
                       className="flex-1 h-9 border border-border text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
                     >
-                      annuler
+                      {t("settings.cancel")}
                     </button>
                     <button
                       onClick={() => setDeleteStep(2)}
                       className="flex-1 h-9 border border-border text-xs hover:border-foreground transition-colors"
                     >
-                      continuer
+                      {t("settings.continue")}
                     </button>
                   </div>
                 </div>
@@ -469,9 +469,9 @@ export default function SettingsClient() {
               {deleteStep === 2 && (
                 <div className="border border-border p-4 flex flex-col gap-4">
                   <div className="flex flex-col gap-1">
-                    <span className="text-sm font-medium">dernière confirmation</span>
+                    <span className="text-sm font-medium">{t("settings.delete.final.title")}</span>
                     <span className="text-xs text-muted-foreground">
-                      es-tu absolument sûr ? il n'y a aucun retour en arrière possible.
+                      {t("settings.delete.final.desc")}
                     </span>
                   </div>
                   <div className="flex gap-2">
@@ -479,14 +479,14 @@ export default function SettingsClient() {
                       onClick={() => setDeleteStep(0)}
                       className="flex-1 h-9 border border-border text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
                     >
-                      annuler
+                      {t("settings.cancel")}
                     </button>
                     <button
                       onClick={handleDeleteAccount}
                       disabled={deleting}
                       className="flex-1 h-9 border border-border text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                      {deleting ? "..." : "supprimer définitivement"}
+                      {deleting ? "..." : t("settings.delete.confirm")}
                     </button>
                   </div>
                 </div>

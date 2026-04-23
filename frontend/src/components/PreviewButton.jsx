@@ -1,9 +1,11 @@
 "use client";
 import { useAudio } from "@/contexts/AudioContext";
+import { useI18n } from "@/contexts/I18nContext";
 import { cn } from "@/lib/utils";
 
 export default function PreviewButton({ url, className = "" }) {
   const { playing, toggle } = useAudio();
+  const { t } = useI18n();
   if (!url) return null;
 
   const active = playing === url;
@@ -18,7 +20,7 @@ export default function PreviewButton({ url, className = "" }) {
           : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
         className
       )}
-      title={active ? "arrêter" : "écouter 30s"}
+      title={active ? t("preview.stop") : t("preview.listen")}
     >
       {active ? "■" : "▶"}
     </button>

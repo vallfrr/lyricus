@@ -33,6 +33,7 @@ export default function UserProfileClient() {
   const router = useRouter();
   const { user: authUser, logout } = useAuth();
   const { t } = useI18n();
+  const DIFF_LABELS = { easy: t("diff.easy"), medium: t("diff.medium"), hard: t("diff.hard"), extreme: t("diff.extreme") };
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -115,7 +116,7 @@ export default function UserProfileClient() {
                   {profile.by_difficulty.map((d) => (
                     <div key={d.difficulty} className="flex items-center gap-3">
                       <span className={cn("text-xs w-16 shrink-0", DIFF_COLOR[d.difficulty] ?? "text-muted-foreground")}>
-                        {d.difficulty}
+                        {DIFF_LABELS[d.difficulty] ?? d.difficulty}
                       </span>
                       <div className="flex-1 h-1.5 bg-secondary overflow-hidden">
                         <div
@@ -214,7 +215,7 @@ export default function UserProfileClient() {
                           >{g.artist}</Link>
                         </div>
                         <div className={cn("px-2 py-2.5 text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
-                          {g.difficulty}
+                          {DIFF_LABELS[g.difficulty] ?? g.difficulty}
                         </div>
                         <div className="px-2 py-2.5 text-xs tabular-nums font-medium">{pct}%</div>
                         <div className="px-2 py-2.5 text-xs tabular-nums text-muted-foreground">{date}</div>

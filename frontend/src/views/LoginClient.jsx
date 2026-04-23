@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import { OAuthButton, GoogleSvg, DiscordSvg, AppleSvg, FacebookSvg } from "@/components/OAuthButtons";
+import { useI18n } from "@/contexts/I18nContext";
 
 function EyeIcon({ open }) {
   return open ? (
@@ -20,14 +21,13 @@ function EyeIcon({ open }) {
   );
 }
 
-const AUTH_ERRORS = {
-  email_taken: "cette adresse email est déjà associée à un autre compte. connecte-toi puis lie Discord dans les paramètres.",
-};
-
 export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const authError = AUTH_ERRORS[searchParams.get("auth_error")] || null;
+  const { t } = useI18n();
+
+  const authErrorKey = searchParams.get("auth_error");
+  const authError = authErrorKey === "email_taken" ? t("login.error.email_taken") : null;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,10 +47,10 @@ export default function LoginClient() {
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "erreur"); return; }
+      if (!res.ok) { setError(data.error || t("auth.error")); return; }
       router.push(data.needs_setup ? "/setup" : "/");
     } catch {
-      setError("erreur réseau");
+      setError(t("auth.error.network"));
     } finally {
       setLoading(false);
     }
@@ -63,8 +63,8 @@ export default function LoginClient() {
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-sm flex flex-col gap-6">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">connexion</h1>
-            <p className="text-xs text-muted-foreground mt-1">connecte-toi pour sauvegarder tes scores</p>
+            <h1 className="text-xl font-semibold tracking-tight">{t("login.title")}</h1>
+            <p className="text-xs text-muted-foreground mt-1">{t("login.subtitle")}</p>
           </div>
 
           {authError && (
@@ -74,7 +74,7 @@ export default function LoginClient() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <input
               type="email"
-              placeholder="adresse email"
+              placeholder={t("auth.email")}
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError(""); }}
               required
@@ -84,7 +84,7 @@ export default function LoginClient() {
             <div className="relative">
               <input
                 type={showPw ? "text" : "password"}
-                placeholder="mot de passe"
+                placeholder={t("auth.password")}
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(""); }}
                 required
@@ -110,27 +110,27 @@ export default function LoginClient() {
               disabled={loading || !email || !password}
               className="h-9 border border-foreground bg-foreground text-background text-sm font-medium hover:bg-foreground/85 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              {loading ? "..." : "se connecter"}
+              {loading ? "..." : t("login.submit")}
             </button>
           </form>
 
           <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
             <div className="flex-1 border-t border-border" />
-            ou
+            {t("home.or")}
             <div className="flex-1 border-t border-border" />
           </div>
 
           <div className="flex flex-col gap-2">
-            <OAuthButton href="/api/auth/google"  label="continuer avec Google"   icon={<GoogleSvg />} />
-            <OAuthButton href="/api/auth/discord" label="continuer avec Discord"  icon={<DiscordSvg />} />
-            <OAuthButton disabled label="continuer avec Apple"    icon={<AppleSvg />} />
-            <OAuthButton disabled label="continuer avec Facebook" icon={<FacebookSvg />} />
+            <OAuthButton href="/api/auth/google"  label={t("auth.oauth.google")}   icon={<GoogleSvg />} />
+            <OAuthButton href="/api/auth/discord" label={t("auth.oauth.discord")}  icon={<DiscordSvg />} />
+            <OAuthButton disabled label={t("auth.oauth.apple")}    icon={<AppleSvg />} />
+            <OAuthButton disabled label={t("auth.oauth.facebook")} icon={<FacebookSvg />} />
           </div>
 
           <p className="text-xs text-muted-foreground text-center">
-            pas encore de compte ?{" "}
+            {t("login.no_account")}{" "}
             <Link href="/register" className="text-foreground hover:underline">
-              créer un compte
+              {t("login.register")}
             </Link>
           </p>
         </div>

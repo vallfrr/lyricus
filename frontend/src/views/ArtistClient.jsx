@@ -81,7 +81,7 @@ export default function ArtistClient() {
               <div className="flex flex-col gap-0.5">
                 <h1 className="text-2xl font-bold tracking-tight">{artist.name}</h1>
                 {artist.fans > 0 && (
-                  <span className="text-xs text-muted-foreground">{fmtFans(artist.fans)} fans</span>
+                  <span className="text-xs text-muted-foreground">{fmtFans(artist.fans)} {t("artist.fans")}</span>
                 )}
               </div>
             </div>
@@ -111,7 +111,7 @@ export default function ArtistClient() {
                         <PreviewButton url={track.preview} />
                       </div>
                       <span className="text-[10px] text-muted-foreground shrink-0 border border-border px-1.5 py-0.5 pointer-events-none">
-                        jouer
+                        {t("artist.play")}
                       </span>
                     </div>
                   ))}

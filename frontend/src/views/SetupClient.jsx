@@ -2,12 +2,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
 
 const USERNAME_RE = /^[a-zA-Z0-9_\-\.]{2,20}$/;
 
 export default function SetupClient() {
   const { refreshUser } = useAuth();
   const router = useRouter();
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,7 +18,7 @@ export default function SetupClient() {
     e.preventDefault();
     const trimmed = name.trim();
     if (!USERNAME_RE.test(trimmed)) {
-      setError("2 à 20 caractères, lettres, chiffres, _ - .");
+      setError(t("setup.error"));
       return;
     }
     setLoading(true);
@@ -29,11 +31,11 @@ export default function SetupClient() {
         body: JSON.stringify({ name: trimmed }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "erreur"); return; }
+      if (!res.ok) { setError(data.error || t("auth.error")); return; }
       await refreshUser();
       router.replace("/");
     } catch {
-      setError("erreur réseau");
+      setError(t("auth.error.network"));
     } finally {
       setLoading(false);
     }
@@ -44,9 +46,9 @@ export default function SetupClient() {
       <div className="w-full max-w-sm flex flex-col gap-6">
         <div>
           <span className="text-sm font-semibold tracking-tight">lyricus</span>
-          <h1 className="text-2xl font-bold tracking-tight mt-4">choisis ton pseudo</h1>
+          <h1 className="text-2xl font-bold tracking-tight mt-4">{t("setup.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Ce nom apparaîtra sur le classement. Tu pourras le changer plus tard.
+            {t("setup.subtitle")}
           </p>
         </div>
 
@@ -55,7 +57,7 @@ export default function SetupClient() {
             type="text"
             value={name}
             onChange={(e) => { setName(e.target.value); setError(""); }}
-            placeholder="ton_pseudo"
+            placeholder={t("setup.placeholder")}
             maxLength={20}
             autoFocus
             spellCheck={false}
@@ -67,7 +69,7 @@ export default function SetupClient() {
           {error && <p className="text-xs text-muted-foreground border border-border px-3 py-1.5">{error}</p>}
 
           <p className="text-[10px] text-muted-foreground">
-            2–20 caractères · lettres, chiffres, <code>_</code> <code>-</code> <code>.</code>
+            {t("settings.username.hint")}
           </p>
 
           <button
@@ -75,7 +77,7 @@ export default function SetupClient() {
             disabled={loading || name.trim().length < 2}
             className="h-10 border border-foreground bg-foreground text-background text-sm font-medium hover:bg-foreground/85 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {loading ? "..." : "valider →"}
+            {loading ? "..." : t("setup.submit")}
           </button>
         </form>
       </div>
