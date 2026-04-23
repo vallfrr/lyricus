@@ -2,12 +2,14 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import PreviewButton from "@/components/PreviewButton";
+import { useAudio } from "@/contexts/AudioContext";
 
 function cleanArtist(name) {
   return name.split(/\s+(?:feat\.?|ft\.?|with)\s+/i)[0].trim();
 }
 
 export default function SearchBar({ onSelect, placeholder = "artiste ou titre..." }) {
+  const { playing, stop } = useAudio();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -49,6 +51,7 @@ export default function SearchBar({ onSelect, placeholder = "artiste ou titre...
   }, [query]);
 
   function handleSelect(song) {
+    if (playing && playing !== song.preview) stop();
     skipSearchRef.current = true;
     setQuery(`${song.artist} — ${song.title}`);
     setOpen(false);
@@ -64,7 +67,7 @@ export default function SearchBar({ onSelect, placeholder = "artiste ou titre...
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
-          onBlur={() => setOpen(false)}
+          onBlur={() => { if (open) stop(); setOpen(false); }}
           className="w-full h-9 border border-border bg-background px-3 text-sm font-mono outline-none focus:border-foreground transition-colors placeholder:text-muted-foreground pr-8"
         />
         {loading && (
@@ -90,7 +93,7 @@ export default function SearchBar({ onSelect, placeholder = "artiste ou titre...
                   <Link
                     href={`/artist/${encodeURIComponent(cleanArtist(song.artist))}`}
                     className="hover:underline"
-                    onMouseDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   >
                     {song.artist}
                   </Link>
