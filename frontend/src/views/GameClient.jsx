@@ -120,6 +120,7 @@ export default function GameClient() {
   const album      = searchParams.get("album") ?? "";
   const cover      = searchParams.get("cover") ?? "";
   const difficulty = searchParams.get("difficulty") ?? "medium";
+  const seedParam  = searchParams.get("seed") ?? "";
   const mode       = "flow";
 
   const challengeScore = searchParams.get("challenge_score");
@@ -186,6 +187,7 @@ export default function GameClient() {
     }
     const p = new URLSearchParams({ artist, title, difficulty });
     if (album) p.set("album", album);
+    if (seedParam) p.set("seed", seedParam);
     fetch(`/api/lyrics?${p}`, { credentials: "include" })
       .then((r) => { if (!r.ok) throw new Error(t("game.error.notfound")); return r.json(); })
       .then((d) => { setGameData(d); })
@@ -341,6 +343,7 @@ export default function GameClient() {
       challenge_score: String(pct),
       challenge_total: String(score.total),
     });
+    if (gameData?.seed != null) p.set("seed", String(gameData.seed));
     if (user?.name) p.set("from", user.name);
     return `${window.location.origin}/challenge?${p}`;
   }
@@ -348,7 +351,20 @@ export default function GameClient() {
   async function handleCopyChallenge() {
     const url = buildChallengeUrl();
     if (!url) return;
-    await navigator.clipboard.writeText(url).catch(() => {});
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const el = document.createElement("textarea");
+        el.value = url;
+        el.style.position = "fixed";
+        el.style.opacity = "0";
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      }
+    } catch {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }

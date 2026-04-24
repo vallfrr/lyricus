@@ -19,6 +19,7 @@ export default function ChallengeClient() {
   const challengeScore = String(Math.max(0, Math.min(100, parseInt(searchParams.get("challenge_score") ?? "0", 10) || 0)));
   const challengeTotal = String(Math.max(0, parseInt(searchParams.get("challenge_total") ?? "0", 10) || 0));
   const difficulty = searchParams.get("difficulty") ?? "medium";
+  const seed       = searchParams.get("seed") ?? "";
 
   const mode = "flow";
 
@@ -36,6 +37,7 @@ export default function ChallengeClient() {
     if (album) p.set("album", album);
     if (cover) p.set("cover", cover);
     if (from)  p.set("from", from);
+    if (seed)  p.set("seed", seed);
     router.push(`/game?${p}`);
   }
 
