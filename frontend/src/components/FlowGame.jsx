@@ -92,6 +92,12 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
   }
 
   // ── Typed input: exact match after normalize ─────────────────────────────
+  function autoFinishIfComplete(newRevealed) {
+    if (newRevealed.size >= totalBlanks) {
+      setTimeout(() => handleFinish(newRevealed), 400);
+    }
+  }
+
   function handleTypedInput(e) {
     const value = e.target.value;
     setInput(value);
@@ -105,6 +111,7 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
       setInput("");
       triggerFlash();
       notifyFirstMatch();
+      autoFinishIfComplete(newRevealed);
     }
   }
 
@@ -134,6 +141,7 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
             setRevealed(newRevealed);
             triggerFlash();
             notifyFirstMatch();
+            autoFinishIfComplete(newRevealed);
           }
           setInterim("");
         } else {
@@ -146,6 +154,7 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
               setRevealed(newRevealed);
               triggerFlash();
               notifyFirstMatch();
+              autoFinishIfComplete(newRevealed);
             }
           }
         }
@@ -182,19 +191,20 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
     if (listening) { stopListening(); setTimeout(startListening, 100); }
   }
 
-  function handleFinish() {
+  function handleFinish(revealedOverride) {
+    const r = (revealedOverride instanceof Set) ? revealedOverride : revealed;
     stopListening();
     setFinished(true);
     onReveal?.({
-      score: { correct: revealed.size, total: totalBlanks },
-      details: { type: "flow", revealed_ids: [...revealed], total: totalBlanks },
+      score: { correct: r.size, total: totalBlanks },
+      details: { type: "flow", revealed_ids: [...r], total: totalBlanks },
     });
   }
 
   useEffect(() => () => stopListening(), []);
 
   return (
-    <div className="flex flex-col gap-6 pb-24">
+    <div className={`flex flex-col gap-6 ${finished ? "pb-4" : "pb-24"}`}>
       <div className="text-base leading-[3] break-words">
         {tokens.map((token, i) => {
           if (token.type === "newline") return <br key={i} />;

@@ -5,6 +5,7 @@ import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import { OAuthButton, GoogleSvg, DiscordSvg, AppleSvg, FacebookSvg } from "@/components/OAuthButtons";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 function EyeIcon({ open }) {
   return open ? (
@@ -25,6 +26,7 @@ export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
+  const { refreshUser } = useAuth();
 
   const authErrorKey = searchParams.get("auth_error");
   const authError = authErrorKey === "email_taken" ? t("login.error.email_taken") : null;
@@ -48,6 +50,7 @@ export default function LoginClient() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || t("auth.error")); return; }
+      await refreshUser();
       router.push(data.needs_setup ? "/setup" : "/");
     } catch {
       setError(t("auth.error.network"));

@@ -64,7 +64,7 @@ services:
       PORT: "80"
       BACKEND_URL: http://backend-dev:8000
     ports:
-      - "127.0.0.1:3001:80"
+      - "3001:80"
     depends_on:
       - backend-dev
     networks:

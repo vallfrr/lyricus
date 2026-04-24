@@ -105,6 +105,7 @@ export default function GameClient() {
   const [finished, setFinished] = useState(false);
   const [score, setScore] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [newBadges, setNewBadges] = useState([]);
   const [savedProgress, setSavedProgress] = useState(null);
   const [resumeDecided, setResumeDecided] = useState(false);
   const [initialProgress, setInitialProgress] = useState(null);
@@ -112,13 +113,14 @@ export default function GameClient() {
   const timer = useTimer();
   const latestDataRef = useRef(null);
   const lastProgressTimeRef = useRef(Date.now());
+  const finishedRef = useRef(null);
 
   const artist     = searchParams.get("artist") ?? "";
   const title      = searchParams.get("title") ?? "";
   const album      = searchParams.get("album") ?? "";
   const cover      = searchParams.get("cover") ?? "";
   const difficulty = searchParams.get("difficulty") ?? "medium";
-  const mode       = searchParams.get("mode") ?? "normal";
+  const mode       = "flow";
 
   const challengeScore = searchParams.get("challenge_score");
   const challengeTotal = searchParams.get("challenge_total");
@@ -307,6 +309,14 @@ export default function GameClient() {
         body: JSON.stringify(payload),
       }).catch(() => {});
     }
+    // Check for newly unlocked badges
+    try {
+      const br = await fetch("/api/badges/check", { method: "POST", credentials: "include" });
+      if (br.ok) {
+        const bd = await br.json();
+        if (bd.new_badges?.length > 0) setNewBadges(bd.new_badges);
+      }
+    } catch {}
   }, [user, gameData, artist, title, album, cover, difficulty, mode, timer, dbSessionId]);
 
   function buildGameUrl(overrides = {}) {
@@ -343,6 +353,12 @@ export default function GameClient() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  useEffect(() => {
+    if (finished && finishedRef.current) {
+      finishedRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [finished]);
+
   const nextDiff = DIFF_ORDER[Math.min(DIFF_ORDER.indexOf(difficulty) + 1, DIFF_ORDER.length - 1)];
   const canGoHarder = nextDiff !== difficulty;
 
@@ -371,7 +387,6 @@ export default function GameClient() {
           <ThemeToggle />
           <TimerDisplay display={timer.display} running={timer.running} />
           <span className="border border-border px-1.5 py-0.5">{DIFF_LABELS[difficulty] ?? difficulty}</span>
-          {mode !== "normal" && <span className="border border-border px-1.5 py-0.5">{mode}</span>}
         </div>
         {cover && <img src={cover} alt="cover" width={28} height={28} className="w-7 h-7 object-cover border border-border shrink-0" />}
       </header>
@@ -418,18 +433,7 @@ export default function GameClient() {
           </div>
         )}
 
-        {gameData && (savedProgress === null || resumeDecided) && mode === "normal" && (
-          <LyricsGame
-            tokens={initialProgress?.tokens ?? gameData.tokens}
-            answerToken={initialProgress?.answerToken ?? gameData.answer_token}
-            onReveal={handleReveal}
-            onFirstMatch={timer.start}
-            onProgress={handleProgress}
-            initialAnswers={initialProgress?.type === "normal" ? initialProgress.answers : undefined}
-          />
-        )}
-
-        {gameData && (savedProgress === null || resumeDecided) && mode === "flow" && (
+        {gameData && (savedProgress === null || resumeDecided) && (
           <FlowGame
             tokens={initialProgress?.tokens ?? gameData.tokens}
             answers={initialProgress?.answers ?? gameData.answers}
@@ -440,50 +444,61 @@ export default function GameClient() {
           />
         )}
 
+        <div ref={finishedRef} />
+
+        {finished && newBadges.length > 0 && (
+          <div className="border border-border bg-secondary/30 px-4 py-3 flex flex-col gap-2 mb-4">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">🏅 succès débloqués</span>
+            <div className="flex flex-wrap gap-2">
+              {newBadges.map((b) => (
+                <span key={b.id} className="text-xs border border-border px-2 py-1" title={b.desc}>{b.label}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {finished && (
-          <div className="flex flex-col items-center gap-6 mt-10">
+          <div className="flex flex-col items-center gap-5 mt-4">
             {isChallenge && myPct !== null && (
               <div className="border border-border px-5 py-4 flex flex-col items-center gap-2 w-full max-w-xs text-center">
-                <span className="text-2xl">{challengeWon ? "🎉" : "😅"}</span>
-                <div className="flex gap-6 text-sm tabular-nums">
+                <div className="flex gap-8 text-sm tabular-nums">
                   <div className="flex flex-col items-center gap-0.5">
-                    <span className="font-semibold">{myPct}%</span>
-                    <span className="text-[10px] text-muted-foreground uppercase">{t("game.challenge.you")}</span>
+                    <span className="text-xl font-semibold">{myPct}%</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("game.challenge.you")}</span>
                   </div>
-                  <div className="text-muted-foreground self-center">vs</div>
+                  <div className="text-muted-foreground self-center text-xs">vs</div>
                   <div className="flex flex-col items-center gap-0.5">
-                    <span className="font-semibold">{theirPct}%</span>
-                    <span className="text-[10px] text-muted-foreground uppercase">{challengeFrom || t("game.challenge.them")}</span>
+                    <span className="text-xl font-semibold">{theirPct}%</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{challengeFrom || t("game.challenge.them")}</span>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
                   {challengeWon ? t("game.challenge.won") : t("game.challenge.lost")}
                 </p>
               </div>
             )}
 
-            <div className="flex flex-wrap gap-3 justify-center">
-              <Link href={buildGameUrl()} className="border border-border px-4 py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors">
-                {t("game.replay")}
+            <div className="flex gap-2 w-full max-w-xs">
+              <Link
+                href={`/artist/${encodeURIComponent((gameData?.song?.artist ?? artist).split(/\s+(?:feat\.?|ft\.?|with)\s+/i)[0].trim())}`}
+                className="flex-1 border border-border px-3 py-2 text-xs text-center text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+              >
+                {t("history.artist")}
               </Link>
-              {canGoHarder && (
-                <Link href={buildGameUrl({ difficulty: nextDiff })} className="border border-border px-4 py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors">
-                  {t("game.harder")} ({DIFF_LABELS[nextDiff]})
-                </Link>
-              )}
               <button
                 onClick={handleCopyChallenge}
-                className="border border-border px-4 py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+                className="flex-1 border border-border px-3 py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
               >
                 {copied ? t("game.copied") : t("game.defier")}
               </button>
-              <Link href="/leaderboard" className="border border-border px-4 py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors">
-                {t("nav.leaderboard")}
-              </Link>
-              <Link href="/" className="border border-foreground px-4 py-2 text-xs hover:bg-foreground hover:text-background transition-colors">
-                {t("game.new")}
-              </Link>
             </div>
+
+            <Link
+              href="/"
+              className="w-full max-w-xs border border-foreground px-4 py-2.5 text-sm font-medium text-center hover:bg-foreground hover:text-background transition-colors"
+            >
+              {t("game.new")}
+            </Link>
           </div>
         )}
       </main>
