@@ -55,6 +55,15 @@ export default function HistoryClient() {
   const [loading, setLoading] = useState(true);
   const [inProgress, setInProgress] = useState([]);
   const [search, setSearch] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  async function handleDeleteHistory(id) {
+    try {
+      await fetch(`/api/history/${id}`, { method: "DELETE", credentials: "include" });
+      setHistory((prev) => prev.filter((g) => g.id !== id));
+    } catch {}
+    setConfirmDelete(null);
+  }
 
   const DIFF_LABELS = {
     easy: t("diff.easy"), medium: t("diff.medium"),
@@ -194,11 +203,13 @@ export default function HistoryClient() {
             }).map((g) => {
               const pct = g.score_total > 0 ? Math.round(g.score_correct * 100 / g.score_total) : 0;
               const mainArtist = cleanArtist(g.artist);
+              const isConfirming = confirmDelete === g.id;
               return (
                 <div
                   key={g.id}
-                  className="grid grid-cols-[auto_1fr_6rem_4rem_4rem] items-center gap-0 border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
+                  className="group grid grid-cols-[auto_1fr_auto_2rem] items-center gap-0 border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
                   onClick={() => {
+                    if (isConfirming) return;
                     const p = new URLSearchParams({ artist: g.artist, title: g.title });
                     if (g.album) p.set("album", g.album);
                     if (g.cover) p.set("cover", g.cover);
@@ -226,14 +237,40 @@ export default function HistoryClient() {
                       {" · "}{fmt(g.played_at)}
                     </p>
                   </div>
-                  {/* Diff */}
-                  <div className={cn("px-2 py-2.5 text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
-                    {DIFF_LABELS[g.difficulty] ?? g.difficulty}
-                  </div>
-                  {/* Score */}
-                  <div className="px-2 py-2.5 text-xs tabular-nums font-medium">{pct}%</div>
-                  {/* Duration */}
-                  <div className="px-2 py-2.5 text-xs text-muted-foreground tabular-nums">{fmtDur(g.duration_seconds)}</div>
+                  {/* Right area: details OR confirmation */}
+                  {isConfirming ? (
+                    <div
+                      className="flex items-center justify-end gap-2 pl-2 pr-1 py-2.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t("history.delete.confirm")}</span>
+                      <button
+                        onClick={() => handleDeleteHistory(g.id)}
+                        className="text-[10px] border border-border px-1.5 py-0.5 text-muted-foreground hover:border-green-500 hover:text-green-500 transition-colors shrink-0"
+                      >✓</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-end gap-3 px-2 py-2.5">
+                      <span className={cn("text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
+                        {DIFF_LABELS[g.difficulty] ?? g.difficulty}
+                      </span>
+                      <span className="text-xs tabular-nums font-medium">{pct}%</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">{fmtDur(g.duration_seconds)}</span>
+                    </div>
+                  )}
+                  {/* Delete / cancel button — always at same position */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDelete(isConfirming ? null : g.id);
+                    }}
+                    className={cn(
+                      "self-stretch flex items-center justify-center w-8 text-[11px] border-l border-border transition-colors shrink-0",
+                      isConfirming
+                        ? "text-muted-foreground hover:text-foreground"
+                        : "text-transparent group-hover:text-muted-foreground hover:text-foreground"
+                    )}
+                  >✕</button>
                 </div>
               );
             })}

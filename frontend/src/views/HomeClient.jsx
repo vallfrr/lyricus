@@ -274,11 +274,32 @@ function DailyCard({ difficulty }) {
   );
 }
 
+const PLAYLIST_CACHE_KEY = "lyricusPlaylistCache";
+
+function getPlaylistCache() {
+  try {
+    const raw = sessionStorage.getItem(PLAYLIST_CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function setPlaylistCache(playlistIds, tracks) {
+  try {
+    sessionStorage.setItem(PLAYLIST_CACHE_KEY, JSON.stringify({ playlistIds, tracks }));
+  } catch {}
+}
+
+function playlistFingerprint(playlists) {
+  return playlists.map((p) => p.id).sort().join(",");
+}
+
 export default function HomeClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
   const { stop } = useAudio();
+  const { user } = useAuth();
   const [difficulty, setDifficulty] = useState("medium");
   const [selectedSong, setSelectedSong] = useState(null);
 
@@ -296,9 +317,60 @@ export default function HomeClient() {
       });
     }
   }, []);
+
   const [suggestedSongs, setSuggestedSongs] = useState([]);
   const [loadingRandom, setLoadingRandom] = useState(false);
   const [error, setError] = useState(null);
+
+  // Playlist random state
+  const [userPlaylists, setUserPlaylists] = useState(null); // null = not yet fetched
+  const [loadingPlaylist, setLoadingPlaylist] = useState(false);
+  const [playlistError, setPlaylistError] = useState(null);
+
+  // Fetch playlist metadata once when user is known (just IDs + count, lightweight)
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/playlists", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => setUserPlaylists(Array.isArray(data) ? data : []))
+      .catch(() => setUserPlaylists([]));
+  }, [user]);
+
+  async function handlePlaylistPick() {
+    if (!userPlaylists?.length || loadingPlaylist) return;
+    setPlaylistError(null);
+
+    const fingerprint = playlistFingerprint(userPlaylists);
+    const cached = getPlaylistCache();
+
+    // Use cache if fingerprint matches and we have tracks
+    if (cached && cached.playlistIds === fingerprint && cached.tracks?.length) {
+      const idx = Math.floor(Math.random() * cached.tracks.length);
+      const song = cached.tracks[idx];
+      setSelectedSong(song);
+      setSuggestedSongs([]);
+      setError(null);
+      return;
+    }
+
+    // Fetch from API and cache
+    setLoadingPlaylist(true);
+    try {
+      const res = await fetch("/api/playlists/tracks", { credentials: "include" });
+      if (!res.ok) throw new Error();
+      const tracks = await res.json();
+      if (!tracks.length) throw new Error(t("home.playlist.error"));
+      setPlaylistCache(fingerprint, tracks);
+      const song = tracks[Math.floor(Math.random() * tracks.length)];
+      setSelectedSong(song);
+      setSuggestedSongs([]);
+      setError(null);
+    } catch {
+      setPlaylistError(t("home.playlist.error"));
+    } finally {
+      setLoadingPlaylist(false);
+    }
+  }
 
   async function handleGenreSelect(genre) {
     setLoadingRandom(true);
@@ -322,6 +394,9 @@ export default function HomeClient() {
     router.push(`/game?${p.toString()}`);
   }
 
+  const hasPlaylists = userPlaylists !== null && userPlaylists.length > 0;
+  const playlistsLoaded = userPlaylists !== null;
+
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
@@ -344,6 +419,30 @@ export default function HomeClient() {
             onSelect={(s) => { setSelectedSong(s); setSuggestedSongs([]); setError(null); }}
           />
         </Section>
+
+        {user && playlistsLoaded && (
+          <Section label={t("home.playlist.label")}>
+            {hasPlaylists ? (
+              <div className="flex flex-col gap-1.5">
+                <button
+                  onClick={handlePlaylistPick}
+                  disabled={loadingPlaylist}
+                  className="h-8 px-3 text-xs border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                >
+                  {loadingPlaylist ? t("home.playlist.loading") : t("home.playlist.btn")}
+                </button>
+                {playlistError && <p className="text-[11px] text-muted-foreground">{playlistError}</p>}
+              </div>
+            ) : (
+              <Link
+                href="/settings"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {t("home.playlist.noplaylists")}
+              </Link>
+            )}
+          </Section>
+        )}
 
         <Section label={t("home.random.label")}>
           <GenrePicker onSelect={handleGenreSelect} loading={loadingRandom} />
