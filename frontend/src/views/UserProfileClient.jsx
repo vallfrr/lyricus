@@ -133,29 +133,6 @@ export default function UserProfileClient() {
               </div>
             )}
 
-            {/* Stats by mode */}
-            {profile.by_mode?.length > 0 && (
-              <div className="flex flex-col gap-3">
-                <h2 className="text-xs text-muted-foreground uppercase tracking-widest">{t("profile.by_mode")}</h2>
-                <div className="flex flex-col gap-2">
-                  {profile.by_mode.map((m) => (
-                    <div key={m.mode} className="flex items-center gap-3">
-                      <span className="text-xs w-16 shrink-0 text-muted-foreground">{m.mode}</span>
-                      <div className="flex-1 h-1.5 bg-secondary overflow-hidden">
-                        <div
-                          className="h-full bg-foreground transition-all"
-                          style={{ width: `${m.avg_score}%` }}
-                        />
-                      </div>
-                      <span className="text-xs tabular-nums text-muted-foreground w-14 text-right shrink-0">
-                        {m.avg_score}% · {m.games}p
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Favorite artists */}
             {profile.top_artists?.length > 0 && (
               <div className="flex flex-col gap-3">

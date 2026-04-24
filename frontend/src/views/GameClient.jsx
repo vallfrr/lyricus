@@ -118,7 +118,7 @@ export default function GameClient() {
   const album      = searchParams.get("album") ?? "";
   const cover      = searchParams.get("cover") ?? "";
   const difficulty = searchParams.get("difficulty") ?? "medium";
-  const mode       = searchParams.get("mode") ?? "normal";
+  const mode       = "flow";
 
   const challengeScore = searchParams.get("challenge_score");
   const challengeTotal = searchParams.get("challenge_total");
@@ -371,7 +371,6 @@ export default function GameClient() {
           <ThemeToggle />
           <TimerDisplay display={timer.display} running={timer.running} />
           <span className="border border-border px-1.5 py-0.5">{DIFF_LABELS[difficulty] ?? difficulty}</span>
-          {mode !== "normal" && <span className="border border-border px-1.5 py-0.5">{mode}</span>}
         </div>
         {cover && <img src={cover} alt="cover" width={28} height={28} className="w-7 h-7 object-cover border border-border shrink-0" />}
       </header>
@@ -418,18 +417,7 @@ export default function GameClient() {
           </div>
         )}
 
-        {gameData && (savedProgress === null || resumeDecided) && mode === "normal" && (
-          <LyricsGame
-            tokens={initialProgress?.tokens ?? gameData.tokens}
-            answerToken={initialProgress?.answerToken ?? gameData.answer_token}
-            onReveal={handleReveal}
-            onFirstMatch={timer.start}
-            onProgress={handleProgress}
-            initialAnswers={initialProgress?.type === "normal" ? initialProgress.answers : undefined}
-          />
-        )}
-
-        {gameData && (savedProgress === null || resumeDecided) && mode === "flow" && (
+        {gameData && (savedProgress === null || resumeDecided) && (
           <FlowGame
             tokens={initialProgress?.tokens ?? gameData.tokens}
             answers={initialProgress?.answers ?? gameData.answers}

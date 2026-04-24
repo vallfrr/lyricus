@@ -74,7 +74,7 @@ function useCountdown(seconds) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function DailyCard({ difficulty, mode }) {
+function DailyCard({ difficulty }) {
   const router = useRouter();
   const { t } = useI18n();
   const { user } = useAuth();
@@ -103,7 +103,7 @@ function DailyCard({ difficulty, mode }) {
 
   function handlePlay() {
     if (!data?.artist) return;
-    const p = new URLSearchParams({ artist: data.artist, title: data.title, difficulty, mode });
+    const p = new URLSearchParams({ artist: data.artist, title: data.title, difficulty, mode: "flow" });
     if (data.album) p.set("album", data.album);
     if (data.cover) p.set("cover", data.cover);
     router.push(`/game?${p}`);
@@ -158,11 +158,13 @@ function DailyCard({ difficulty, mode }) {
               }
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{data.title}</p>
-                <Link
-                  href={`/artist/${encodeURIComponent(cleanArtist(data.artist))}`}
-                  className="text-xs text-muted-foreground truncate block hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >{data.artist}</Link>
+                <p className="text-xs text-muted-foreground truncate">
+                  <Link
+                    href={`/artist/${encodeURIComponent(cleanArtist(data.artist))}`}
+                    className="hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >{data.artist}</Link>
+                </p>
               </div>
               {!data.completed && (
                 <span className="text-xs text-muted-foreground shrink-0">{t("daily.play")}</span>
@@ -195,7 +197,6 @@ export default function HomeClient() {
   const { t } = useI18n();
   const { stop } = useAudio();
   const [difficulty, setDifficulty] = useState("medium");
-  const [mode, setMode] = useState("normal");
   const [selectedSong, setSelectedSong] = useState(null);
 
   // Pre-select song from URL params (e.g. from artist page or history)
@@ -232,7 +233,7 @@ export default function HomeClient() {
   function handleStart() {
     if (!selectedSong) return;
     stop();
-    const p = new URLSearchParams({ artist: selectedSong.artist, title: selectedSong.title, difficulty, mode });
+    const p = new URLSearchParams({ artist: selectedSong.artist, title: selectedSong.title, difficulty, mode: "flow" });
     if (selectedSong.album) p.set("album", selectedSong.album);
     if (selectedSong.cover) p.set("cover", selectedSong.cover);
     router.push(`/game?${p.toString()}`);
@@ -248,7 +249,7 @@ export default function HomeClient() {
           <p className="text-sm text-muted-foreground mt-1">{t("home.tagline")}</p>
         </div>
 
-        <DailyCard difficulty={difficulty} mode={mode} />
+        <DailyCard difficulty={difficulty} />
 
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
           <div className="flex-1 border-t border-border" />{t("home.or")}<div className="flex-1 border-t border-border" />
@@ -289,7 +290,7 @@ export default function HomeClient() {
           </Section>
         )}
 
-        <DifficultySelector difficulty={difficulty} onDifficulty={setDifficulty} mode={mode} onMode={setMode} />
+        <DifficultySelector difficulty={difficulty} onDifficulty={setDifficulty} />
 
         <button
           onClick={handleStart}

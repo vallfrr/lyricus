@@ -20,7 +20,7 @@ export default function ChallengeClient() {
   const challengeTotal = String(Math.max(0, parseInt(searchParams.get("challenge_total") ?? "0", 10) || 0));
   const difficulty = searchParams.get("difficulty") ?? "medium";
 
-  const [mode, setMode] = useState("normal");
+  const mode = "flow";
 
   if (!artist || !title) {
     router.replace("/");
@@ -69,26 +69,6 @@ export default function ChallengeClient() {
           <span className="text-xs text-muted-foreground">
             {from ? `score de ${from}` : t("challenge.score.label")} · {challengeTotal} {t("challenge.words")}
           </span>
-        </div>
-
-        {/* Mode selector (difficulty is fixed by challenger) */}
-        <div className="flex flex-col gap-2">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("challenge.mode")}</span>
-          <div className="flex gap-2">
-            {["normal", "flow"].map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`flex-1 py-2 text-xs border transition-colors ${
-                  mode === m
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border text-foreground hover:border-foreground"
-                }`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
         </div>
 
         <button

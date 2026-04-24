@@ -125,7 +125,7 @@ export default function HistoryClient() {
                       <p className="text-xs font-medium truncate">{g.title}</p>
                       <p className="text-[10px] text-muted-foreground truncate">
                         <Link href={`/artist/${encodeURIComponent(cleanArtist(g.artist))}`} className="hover:underline">{g.artist}</Link>
-                        {" · "}{DIFF_LABELS[g.difficulty] ?? g.difficulty} · {g.mode}
+                        {" · "}{DIFF_LABELS[g.difficulty] ?? g.difficulty}
                       </p>
                     </div>
                     {(progressStr || timerStr) && (
@@ -136,7 +136,7 @@ export default function HistoryClient() {
                     )}
                     <button
                       onClick={() => {
-                        const p = new URLSearchParams({ artist: g.artist, title: g.title, difficulty: g.difficulty, mode: g.mode });
+                        const p = new URLSearchParams({ artist: g.artist, title: g.title, difficulty: g.difficulty, mode: "flow" });
                         if (g.cover) p.set("cover", g.cover);
                         // For DB sessions, pass session_id so GameClient reuses stored tokens
                         if (g._fromDb && g.id) p.set("session_id", g.id);
