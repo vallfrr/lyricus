@@ -20,7 +20,9 @@ LRCLIB_BASE = "https://lrclib.net/api"
 
 
 async def lrclib_get(session, artist: str, title: str, album: str = "") -> dict | None:
-    """Fetch lyrics from lrclib with caching."""
+    """Fetch lyrics from lrclib with caching.
+    First tries exact GET (artist_name + track_name), then falls back to fuzzy search
+    so that slight spelling/casing differences (e.g. from Last.fm) still resolve."""
     key = f"lrc:{artist}:{title}:{album}".lower()
     cached = cache_store.get(key)
     if cached is not None:
@@ -30,6 +32,7 @@ async def lrclib_get(session, artist: str, title: str, album: str = "") -> dict 
     if album:
         params["album_name"] = album
 
+    # 1) Exact match
     try:
         async with session.get(
             f"{LRCLIB_BASE}/get",
@@ -43,6 +46,39 @@ async def lrclib_get(session, artist: str, title: str, album: str = "") -> dict 
                     return data
     except Exception:
         pass
+
+    # 2) Fuzzy search fallback — handles casing/accent/spelling differences from Last.fm etc.
+    try:
+        import unicodedata as _ud
+
+        def _norm(s):
+            s = _ud.normalize("NFKD", s.lower())
+            s = "".join(c for c in s if not _ud.combining(c))
+            return re.sub(r"[^\w\s]", "", s).strip()
+
+        artist_n = _norm(artist)
+        title_n  = _norm(title)
+
+        async with session.get(
+            f"{LRCLIB_BASE}/search",
+            params={"q": f"{artist} {title}"},
+            timeout=aiohttp.ClientTimeout(total=12),
+        ) as resp:
+            if resp.status == 200:
+                results = await resp.json()
+                for r in (results or [])[:8]:
+                    if not r.get("plainLyrics"):
+                        continue
+                    r_artist = _norm(r.get("artistName", ""))
+                    r_title  = _norm(r.get("trackName", ""))
+                    # Accept if both artist and title are close enough
+                    if (artist_n in r_artist or r_artist in artist_n) and \
+                       (title_n  in r_title  or r_title  in title_n):
+                        cache_store.set(key, r)
+                        return r
+    except Exception:
+        pass
+
     return None
 
 
