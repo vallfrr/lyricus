@@ -120,3 +120,8 @@ CREATE TABLE IF NOT EXISTS user_badges (
     PRIMARY KEY (user_id, badge_id)
 );
 CREATE INDEX IF NOT EXISTS user_badges_user_id_idx ON user_badges(user_id);
+
+-- Daily challenge enhancements
+ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS is_daily BOOLEAN DEFAULT FALSE;
+ALTER TABLE daily_challenges ADD COLUMN IF NOT EXISTS completion_rank INT;
+ALTER TABLE daily_challenges ADD COLUMN IF NOT EXISTS candidates JSONB NOT NULL DEFAULT '[]';

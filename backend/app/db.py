@@ -174,15 +174,16 @@ async def start_game_session(pool, user_id: str, data: dict) -> str:
             """
             INSERT INTO game_sessions
               (user_id, artist, title, album, difficulty, mode, cover,
-               status, seed)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,'playing',$8)
+               status, seed, is_daily)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,'playing',$8,$9)
             RETURNING id
             """,
             user_id,
             data.get("artist", ""), data.get("title", ""), data.get("album", ""),
             data.get("difficulty", "medium"), data.get("mode", "normal"),
             data.get("cover", ""),
-            data.get("seed")
+            data.get("seed"),
+            bool(data.get("is_daily", False)),
         )
     return str(row["id"])
 
@@ -242,6 +243,7 @@ async def get_unfinished_sessions(pool, user_id: str) -> list[dict]:
             SELECT id, artist, title, album, difficulty, mode, cover, played_at, details
             FROM game_sessions
             WHERE user_id = $1 AND status = 'playing'
+              AND (is_daily IS NULL OR is_daily = FALSE)
             ORDER BY played_at DESC
             """,
             user_id
@@ -300,7 +302,7 @@ async def get_user_history(pool, user_id: str, limit: int = 100) -> list[dict]:
             """
             SELECT id, artist, title, album, difficulty, mode,
                    score_correct, score_total, duration_seconds, played_at,
-                   cover, details
+                   cover, details, is_daily
             FROM game_sessions
             WHERE user_id = $1 AND status = 'finished'
             ORDER BY played_at DESC
@@ -309,6 +311,6 @@ async def get_user_history(pool, user_id: str, limit: int = 100) -> list[dict]:
             user_id, limit,
         )
     return [
-        {**dict(r), "id": str(r["id"]), "played_at": r["played_at"].isoformat()}
+        {**dict(r), "id": str(r["id"]), "played_at": r["played_at"].isoformat(), "is_daily": bool(r["is_daily"] or False)}
         for r in rows
     ]

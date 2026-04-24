@@ -75,21 +75,55 @@ function useCountdown(seconds) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+function rankOrdinal(n, locale) {
+  if (locale === "fr") return n === 1 ? "1er" : `${n}ème`;
+  if (locale === "en") {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+  return String(n); // raw number — ordinal context is in the i18n template
+}
+
+function fmtTimer(s) {
+  if (!s) return null;
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
 function DailyCard({ difficulty }) {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rerolling, setRerolling] = useState(false);
+  const [yesterday, setYesterday] = useState(null);
+  const [dailyProgress, setDailyProgress] = useState(null);
   const countdown = useCountdown(data?.seconds_until_reset ?? 0);
 
   useEffect(() => {
     fetch("/api/daily", { credentials: "include" })
       .then((r) => r.json())
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        // Check localStorage for in-progress daily game
+        if (d?.artist && d?.title && !d?.completed) {
+          try {
+            const key = `lyricusProgress_${encodeURIComponent(d.artist)}_${encodeURIComponent(d.title)}_medium_flow`;
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const saved = JSON.parse(raw);
+              if (Date.now() - saved.savedAt <= 7 * 24 * 3600 * 1000) setDailyProgress(saved);
+            }
+          } catch {}
+        }
+      })
       .catch(() => setData(null))
       .finally(() => setLoading(false));
+    fetch("/api/daily/yesterday", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (d.available) setYesterday(d); })
+      .catch(() => {});
   }, [user]);
 
   async function handleReroll() {
@@ -104,9 +138,10 @@ function DailyCard({ difficulty }) {
 
   function handlePlay() {
     if (!data?.artist) return;
-    const p = new URLSearchParams({ artist: data.artist, title: data.title, difficulty, mode: "flow" });
+    const p = new URLSearchParams({ artist: data.artist, title: data.title, difficulty: "medium", mode: "flow", is_daily: "1" });
     if (data.album) p.set("album", data.album);
     if (data.cover) p.set("cover", data.cover);
+    if (dailyProgress) p.set("resume", "1");
     router.push(`/game?${p}`);
   }
 
@@ -114,7 +149,7 @@ function DailyCard({ difficulty }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Section header with reroll button */}
+      {/* Section header with reroll and yesterday buttons */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("daily.title")}</span>
@@ -125,15 +160,30 @@ function DailyCard({ difficulty }) {
             </span>
           )}
         </div>
-        {!loading && canReroll && (
-          <button
-            onClick={handleReroll}
-            disabled={rerolling}
-            className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors disabled:opacity-40 flex items-center gap-1"
-          >
-            ↻ {data.rerolls_remaining} {t("daily.reroll")}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {!loading && yesterday && (
+            <button
+              onClick={() => {
+                const p = new URLSearchParams({ artist: yesterday.artist, title: yesterday.title, reveal_all: "1" });
+                if (yesterday.album) p.set("album", yesterday.album);
+                if (yesterday.cover) p.set("cover", yesterday.cover);
+                router.push(`/game?${p}`);
+              }}
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {t("daily.yesterday")} →
+            </button>
+          )}
+          {!loading && canReroll && (
+            <button
+              onClick={handleReroll}
+              disabled={rerolling}
+              className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors disabled:opacity-40 flex items-center gap-1"
+            >
+              ↻ {data.rerolls_remaining} {t("daily.reroll")}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Card */}
@@ -176,7 +226,21 @@ function DailyCard({ difficulty }) {
                 </p>
               </div>
               {!data.completed && (
-                <span className="text-xs text-muted-foreground shrink-0">{t("daily.play")}</span>
+                <div className="flex flex-col items-end gap-0.5 shrink-0">
+                  <span className="text-xs text-muted-foreground">
+                    {dailyProgress ? t("history.resume") + " →" : t("daily.play")}
+                  </span>
+                  {dailyProgress && (() => {
+                    const revealed = dailyProgress.revealed_ids?.length ?? dailyProgress.revealed?.length ?? 0;
+                    const total = dailyProgress.total ?? 0;
+                    const timer = fmtTimer(dailyProgress.timer);
+                    return (
+                      <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                        {total > 0 ? `${revealed}/${total}` : null}{timer ? ` · ${timer}` : null}
+                      </span>
+                    );
+                  })()}
+                </div>
               )}
             </button>
 
@@ -184,6 +248,16 @@ function DailyCard({ difficulty }) {
             {data.completed && (
               <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-1 pointer-events-none">
                 <span className="text-xs font-medium">✓ {t("daily.completed")}</span>
+                {data.completion_rank && (() => {
+                  const template = t("daily.completion_rank");
+                  const parts = template.split("{{n}}");
+                  const ordinal = rankOrdinal(data.completion_rank, locale);
+                  return (
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      {parts[0]}<strong className="text-foreground font-semibold">{ordinal}</strong>{parts[1] ?? ""}
+                    </span>
+                  );
+                })()}
                 <span className="text-[10px] text-muted-foreground tabular-nums">
                   {t("daily.next_reset")} {countdown}
                 </span>
@@ -200,11 +274,32 @@ function DailyCard({ difficulty }) {
   );
 }
 
+const PLAYLIST_CACHE_KEY = "lyricusPlaylistCache";
+
+function getPlaylistCache() {
+  try {
+    const raw = sessionStorage.getItem(PLAYLIST_CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function setPlaylistCache(playlistIds, tracks) {
+  try {
+    sessionStorage.setItem(PLAYLIST_CACHE_KEY, JSON.stringify({ playlistIds, tracks }));
+  } catch {}
+}
+
+function playlistFingerprint(playlists) {
+  return playlists.map((p) => p.id).sort().join(",");
+}
+
 export default function HomeClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
   const { stop } = useAudio();
+  const { user } = useAuth();
   const [difficulty, setDifficulty] = useState("medium");
   const [selectedSong, setSelectedSong] = useState(null);
 
@@ -222,9 +317,60 @@ export default function HomeClient() {
       });
     }
   }, []);
+
   const [suggestedSongs, setSuggestedSongs] = useState([]);
   const [loadingRandom, setLoadingRandom] = useState(false);
   const [error, setError] = useState(null);
+
+  // Playlist random state
+  const [userPlaylists, setUserPlaylists] = useState(null); // null = not yet fetched
+  const [loadingPlaylist, setLoadingPlaylist] = useState(false);
+  const [playlistError, setPlaylistError] = useState(null);
+
+  // Fetch playlist metadata once when user is known (just IDs + count, lightweight)
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/playlists", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => setUserPlaylists(Array.isArray(data) ? data : []))
+      .catch(() => setUserPlaylists([]));
+  }, [user]);
+
+  async function handlePlaylistPick() {
+    if (!userPlaylists?.length || loadingPlaylist) return;
+    setPlaylistError(null);
+
+    const fingerprint = playlistFingerprint(userPlaylists);
+    const cached = getPlaylistCache();
+
+    // Use cache if fingerprint matches and we have tracks
+    if (cached && cached.playlistIds === fingerprint && cached.tracks?.length) {
+      const idx = Math.floor(Math.random() * cached.tracks.length);
+      const song = cached.tracks[idx];
+      setSelectedSong(song);
+      setSuggestedSongs([]);
+      setError(null);
+      return;
+    }
+
+    // Fetch from API and cache
+    setLoadingPlaylist(true);
+    try {
+      const res = await fetch("/api/playlists/tracks", { credentials: "include" });
+      if (!res.ok) throw new Error();
+      const tracks = await res.json();
+      if (!tracks.length) throw new Error(t("home.playlist.error"));
+      setPlaylistCache(fingerprint, tracks);
+      const song = tracks[Math.floor(Math.random() * tracks.length)];
+      setSelectedSong(song);
+      setSuggestedSongs([]);
+      setError(null);
+    } catch {
+      setPlaylistError(t("home.playlist.error"));
+    } finally {
+      setLoadingPlaylist(false);
+    }
+  }
 
   async function handleGenreSelect(genre) {
     setLoadingRandom(true);
@@ -248,6 +394,9 @@ export default function HomeClient() {
     router.push(`/game?${p.toString()}`);
   }
 
+  const hasPlaylists = userPlaylists !== null && userPlaylists.length > 0;
+  const playlistsLoaded = userPlaylists !== null;
+
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
@@ -270,6 +419,30 @@ export default function HomeClient() {
             onSelect={(s) => { setSelectedSong(s); setSuggestedSongs([]); setError(null); }}
           />
         </Section>
+
+        {user && playlistsLoaded && (
+          <Section label={t("home.playlist.label")}>
+            {hasPlaylists ? (
+              <div className="flex flex-col gap-1.5">
+                <button
+                  onClick={handlePlaylistPick}
+                  disabled={loadingPlaylist}
+                  className="h-8 px-3 text-xs border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                >
+                  {loadingPlaylist ? t("home.playlist.loading") : t("home.playlist.btn")}
+                </button>
+                {playlistError && <p className="text-[11px] text-muted-foreground">{playlistError}</p>}
+              </div>
+            ) : (
+              <Link
+                href="/settings"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {t("home.playlist.noplaylists")}
+              </Link>
+            )}
+          </Section>
+        )}
 
         <Section label={t("home.random.label")}>
           <GenrePicker onSelect={handleGenreSelect} loading={loadingRandom} />

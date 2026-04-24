@@ -53,7 +53,7 @@ async def _backfill_covers(pool, session):
 
 @app.before_server_start
 async def setup(app, loop):
-    connector = aiohttp.TCPConnector(limit=50, ttl_dns_cache=300)
+    connector = aiohttp.TCPConnector(limit=50, ttl_dns_cache=300, ssl=False)
     app.ctx.session = aiohttp.ClientSession(
         connector=connector,
         timeout=aiohttp.ClientTimeout(total=8),

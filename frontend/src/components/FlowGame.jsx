@@ -54,7 +54,7 @@ function matchFuzzy(candidates, wordMap, currentRevealed) {
   return { newRevealed, matchCount };
 }
 
-export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onProgress, initialRevealed }) {
+export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onProgress, initialRevealed, hideEndButton, autoFinishAt, startFinished }) {
   const { t } = useI18n();
   const [revealed, setRevealed] = useState(() => new Set(initialRevealed ?? []));
   const [input, setInput] = useState("");
@@ -63,7 +63,7 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
   const [flash, setFlash] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [finished, setFinished] = useState(startFinished ?? false);
   const [firstMatchDone, setFirstMatchDone] = useState(false);
   const [voiceUnsupported, setVoiceUnsupported] = useState(!SpeechRecognition);
   const inputRef = useRef(null);
@@ -80,6 +80,16 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
     onProgress?.({ type: "flow", revealed_ids: [...revealed], total: totalBlanks });
   }, [revealed]);
   useEffect(() => { if (inputMode === "type") inputRef.current?.focus(); }, [inputMode]);
+
+  // Auto-finish at a specific timestamp (e.g. midnight for daily challenges)
+  useEffect(() => {
+    if (!autoFinishAt || finished) return;
+    const msLeft = autoFinishAt - Date.now();
+    if (msLeft <= 0) return;
+    const id = setTimeout(() => handleFinish(revealedRef.current), msLeft);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFinishAt]);
 
   function triggerFlash() {
     clearTimeout(flashTimer.current);
@@ -304,9 +314,11 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
               </button>
             )}
 
-            <button onClick={handleFinish} className="border border-border px-3 h-9 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors shrink-0">
-              {t("flow.end")}
-            </button>
+            {!hideEndButton && (
+              <button onClick={handleFinish} className="border border-border px-3 h-9 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors shrink-0">
+                {t("flow.end")}
+              </button>
+            )}
 
 
           </div>

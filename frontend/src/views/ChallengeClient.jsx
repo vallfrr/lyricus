@@ -19,6 +19,7 @@ export default function ChallengeClient() {
   const challengeScore = String(Math.max(0, Math.min(100, parseInt(searchParams.get("challenge_score") ?? "0", 10) || 0)));
   const challengeTotal = String(Math.max(0, parseInt(searchParams.get("challenge_total") ?? "0", 10) || 0));
   const difficulty = searchParams.get("difficulty") ?? "medium";
+  const seed       = searchParams.get("seed") ?? "";
 
   const mode = "flow";
 
@@ -36,6 +37,7 @@ export default function ChallengeClient() {
     if (album) p.set("album", album);
     if (cover) p.set("cover", cover);
     if (from)  p.set("from", from);
+    if (seed)  p.set("seed", seed);
     router.push(`/game?${p}`);
   }
 
@@ -47,7 +49,7 @@ export default function ChallengeClient() {
         <div className="flex flex-col gap-1">
           <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("challenge.title")}</span>
           <h1 className="text-xl font-semibold tracking-tight">
-            {from ? `${from} te lance un défi` : t("challenge.generic")}
+            {from ? `${from} ${t("challenge.from_challenge")}` : t("challenge.generic")}
           </h1>
         </div>
 
@@ -67,7 +69,7 @@ export default function ChallengeClient() {
         <div className="border border-border px-4 py-4 flex flex-col items-center gap-1">
           <span className="text-3xl font-bold tabular-nums">{challengeScore}%</span>
           <span className="text-xs text-muted-foreground">
-            {from ? `score de ${from}` : t("challenge.score.label")} · {challengeTotal} {t("challenge.words")}
+            {from ? `${t("challenge.score_from")} ${from}` : t("challenge.score.label")} · {challengeTotal} {t("challenge.words")}
           </span>
         </div>
 

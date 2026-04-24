@@ -169,7 +169,7 @@ async def get_user_profile(request, username: str):
     recent, by_diff, by_mode, fav_artist_rows, play_days_rows = await asyncio.gather(
         pool.fetch(
             """
-            SELECT artist, title, album, difficulty, mode, score_correct, score_total, played_at, cover
+            SELECT artist, title, album, difficulty, mode, score_correct, score_total, played_at, cover, is_daily
             FROM game_sessions
             WHERE user_id = $1 AND score_total > 0
             ORDER BY played_at DESC LIMIT 10
@@ -271,6 +271,7 @@ async def get_user_profile(request, username: str):
                 "score_correct": r["score_correct"],
                 "score_total":   r["score_total"],
                 "played_at":     r["played_at"].isoformat(),
+                "is_daily":      bool(r["is_daily"] or False),
             }
             for r in recent
         ],

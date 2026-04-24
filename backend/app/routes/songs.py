@@ -1,6 +1,7 @@
 import asyncio
 import random
 import re
+import aiohttp
 from sanic import Blueprint, json
 from sanic.exceptions import SanicException
 from app.utils import cache as cache_store
@@ -30,7 +31,11 @@ async def lrclib_get(session, artist: str, title: str, album: str = "") -> dict 
         params["album_name"] = album
 
     try:
-        async with session.get(f"{LRCLIB_BASE}/get", params=params) as resp:
+        async with session.get(
+            f"{LRCLIB_BASE}/get",
+            params=params,
+            timeout=aiohttp.ClientTimeout(total=12),
+        ) as resp:
             if resp.status == 200:
                 data = await resp.json()
                 if data.get("plainLyrics"):
