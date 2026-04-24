@@ -104,3 +104,19 @@ CREATE TABLE IF NOT EXISTS daily_challenges (
     UNIQUE(user_id, date)
 );
 CREATE INDEX IF NOT EXISTS daily_challenges_user_date_idx ON daily_challenges(user_id, date);
+
+-- Streaks
+ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INT DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS longest_streak INT DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_date DATE;
+
+DROP TABLE IF EXISTS user_daily;
+
+-- Badges
+CREATE TABLE IF NOT EXISTS user_badges (
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    badge_id   TEXT NOT NULL,
+    earned_at  TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (user_id, badge_id)
+);
+CREATE INDEX IF NOT EXISTS user_badges_user_id_idx ON user_badges(user_id);

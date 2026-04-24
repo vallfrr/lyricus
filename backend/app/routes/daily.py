@@ -9,6 +9,7 @@ from sanic import Blueprint, json
 from sanic.exceptions import SanicException
 
 from app.utils.jwt_utils import get_user_from_request
+from app.routes.badges import check_and_award, check_daily_time_badges
 
 daily_bp = Blueprint("daily", url_prefix="/api")
 
@@ -178,24 +179,34 @@ async def _generate_challenge(
     return None
 
 
-def _row_to_dict(row, ttl: int, preview: str = "") -> dict:
+def _row_to_dict(row, ttl: int, preview: str = "", streak: int = 0, longest_streak: int = 0) -> dict:
     return {
-        "artist":           row["artist"],
-        "title":            row["title"],
-        "album":            row["album"] or "",
-        "cover":            row["cover"] or "",
-        "preview":          preview,
-        "rerolls_used":     row["rerolls_used"],
+        "artist":            row["artist"],
+        "title":             row["title"],
+        "album":             row["album"] or "",
+        "cover":             row["cover"] or "",
+        "preview":           preview,
+        "rerolls_used":      row["rerolls_used"],
         "rerolls_remaining": MAX_REROLLS - row["rerolls_used"],
-        "completed":        row["completed_at"] is not None,
-        "completed_at":     row["completed_at"].isoformat() if row["completed_at"] else None,
+        "completed":         row["completed_at"] is not None,
+        "completed_at":      row["completed_at"].isoformat() if row["completed_at"] else None,
         "seconds_until_reset": ttl,
+        "streak":            streak,
+        "longest_streak":    longest_streak,
     }
 
 
-async def _maybe_mark_completed(pool, user_id: str, date: str, artist: str, title: str):
-    """Auto-mark completed if a finished game session matches today's challenge."""
-    await pool.execute(
+async def _get_streak(pool, user_id: str) -> tuple[int, int]:
+    row = await pool.fetchrow(
+        "SELECT current_streak, longest_streak FROM users WHERE id=$1", user_id
+    )
+    return (row["current_streak"] or 0, row["longest_streak"] or 0) if row else (0, 0)
+
+
+async def _maybe_mark_completed(pool, user_id: str, date, artist: str, title: str):
+    """Auto-mark completed if a finished game session matches today's challenge.
+    Updates streak and awards daily badges when first marked."""
+    status = await pool.execute(
         """
         UPDATE daily_challenges SET completed_at = NOW()
         WHERE user_id = $1 AND date = $2 AND completed_at IS NULL
@@ -210,6 +221,34 @@ async def _maybe_mark_completed(pool, user_id: str, date: str, artist: str, titl
         """,
         user_id, date, artist, title,
     )
+
+    if status != "UPDATE 1":
+        return  # already completed or no matching game — nothing to do
+
+    # Update streak
+    user_row = await pool.fetchrow(
+        "SELECT last_daily_date, current_streak, longest_streak FROM users WHERE id=$1", user_id
+    )
+    today_date = _utc_today()
+    yesterday  = today_date - timedelta(days=1)
+    last       = user_row["last_daily_date"] if user_row else None
+
+    if last == yesterday:
+        new_streak = (user_row["current_streak"] or 0) + 1
+    elif last == today_date:
+        new_streak = user_row["current_streak"] or 1
+    else:
+        new_streak = 1
+
+    longest = max(user_row["longest_streak"] or 0, new_streak)
+    await pool.execute(
+        "UPDATE users SET current_streak=$1, longest_streak=$2, last_daily_date=$3 WHERE id=$4",
+        new_streak, longest, today_date, user_id,
+    )
+
+    # Award time-of-day + general badges
+    await check_daily_time_badges(pool, user_id)
+    await check_and_award(pool, user_id)
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -237,7 +276,8 @@ async def get_daily(request):
             user_id, today,
         )
         enrich = await _deezer_enrich(request.app.ctx.session, row["artist"], row["title"])
-        return json(_row_to_dict(row, ttl, enrich["preview"]))
+        streak, longest = await _get_streak(pool, user_id)
+        return json(_row_to_dict(row, ttl, enrich["preview"], streak, longest))
 
     # Check if user has at least one finished game
     count = await pool.fetchval(
@@ -263,7 +303,8 @@ async def get_daily(request):
         challenge["artist"], challenge["title"],
         challenge.get("album", ""), challenge.get("cover", ""),
     )
-    return json(_row_to_dict(row, ttl, challenge.get("preview", "")))
+    streak, longest = await _get_streak(pool, user_id)
+    return json(_row_to_dict(row, ttl, challenge.get("preview", ""), streak, longest))
 
 
 @daily_bp.post("/daily/reroll")

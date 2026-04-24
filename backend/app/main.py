@@ -10,6 +10,7 @@ from app.routes.history import history_bp
 from app.routes.leaderboard import leaderboard_bp
 from app.routes.daily import daily_bp
 from app.routes.playlists import playlists_bp
+from app.routes.badges import badges_bp
 from app.db import create_pool
 
 app = Sanic("Lyricus")
@@ -24,6 +25,7 @@ app.blueprint(history_bp)
 app.blueprint(leaderboard_bp)
 app.blueprint(daily_bp)
 app.blueprint(playlists_bp)
+app.blueprint(badges_bp)
 
 
 async def _backfill_covers(pool, session):

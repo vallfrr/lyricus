@@ -7,6 +7,8 @@ import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { cn } from "@/lib/utils";
+import { Flame, Star } from "lucide-react";
+import { ICON_MAP } from "@/components/BadgeGrid";
 
 function cleanArtist(artist) {
   return artist.split(/\s+(?:feat\.?|ft\.?|with)\s+/i)[0].trim();
@@ -37,6 +39,8 @@ export default function UserProfileClient() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [badges, setBadges] = useState([]);
+  const [badgesModal, setBadgesModal] = useState(false);
 
   useEffect(() => {
     if (!username) return;
@@ -48,6 +52,10 @@ export default function UserProfileClient() {
       .then((d) => { if (d) setProfile(d); })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
+    fetch(`/api/badges?username=${encodeURIComponent(username)}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setBadges(d.badges ?? []))
+      .catch(() => {});
   }, [username]);
 
   return (
@@ -107,6 +115,121 @@ export default function UserProfileClient() {
               <StatBox label={t("profile.best")} value={profile.best_score != null ? `${profile.best_score}%` : null} />
               <StatBox label={t("profile.songs")} value={profile.unique_songs} />
             </div>
+
+            {/* Streak */}
+            {(profile.current_streak > 0 || profile.longest_streak > 0) && (
+              <div className="flex gap-px bg-border">
+                <div className="flex-1 bg-background border border-border px-4 py-3 flex items-center gap-2">
+                  <Flame size={14} className="text-orange-400 shrink-0" />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xl font-semibold tabular-nums">{profile.current_streak ?? 0}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("profile.streak")}</span>
+                  </div>
+                </div>
+                <div className="flex-1 bg-background border border-border px-4 py-3 flex flex-col gap-0.5">
+                  <span className="text-xl font-semibold tabular-nums">{profile.longest_streak ?? 0}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("profile.streak.best")}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Badges */}
+            {badges.length > 0 && (() => {
+              const sorted = [...badges].sort((a, b) => (b.earned ? 1 : 0) - (a.earned ? 1 : 0));
+              const earnedCount = badges.filter(b => b.earned).length;
+              // Show 11 badges (earned first, fill with unearned) + 1 "show all" button
+              const PREVIEW = 11;
+              const preview = sorted.slice(0, PREVIEW);
+              const hasMore = sorted.length > PREVIEW;
+              return (
+                <>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xs text-muted-foreground uppercase tracking-widest">{t("profile.badges")}</h2>
+                      <span className="text-xs text-muted-foreground tabular-nums">{earnedCount}/{badges.length}</span>
+                    </div>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                      {preview.map((badge) => {
+                        const Icon = ICON_MAP[badge.icon] ?? Star;
+                        return (
+                          <div
+                            key={badge.id}
+                            title={`${badge.label} — ${badge.desc}${badge.earned_at ? `\n${new Date(badge.earned_at).toLocaleDateString()}` : ""}`}
+                            className={cn(
+                              "flex flex-col items-center gap-1.5 p-2 border transition-colors",
+                              badge.earned ? "border-border text-foreground" : "border-border/40 text-muted-foreground/30"
+                            )}
+                          >
+                            <Icon size={20} strokeWidth={1.5} />
+                            <span className="text-[9px] text-center leading-tight truncate w-full">{badge.label}</span>
+                          </div>
+                        );
+                      })}
+                      {hasMore && (
+                        <button
+                          onClick={() => setBadgesModal(true)}
+                          className="flex flex-col items-center justify-center gap-1 p-2 border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+                        >
+                          <span className="text-sm leading-none font-medium">···</span>
+                          <span className="text-[9px]">+{sorted.length - PREVIEW}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Modal */}
+                  {badgesModal && (
+                    <div
+                      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
+                      onClick={() => setBadgesModal(false)}
+                    >
+                      <div
+                        className="bg-background border border-border w-full max-w-lg max-h-[80vh] flex flex-col"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+                          <span className="text-xs uppercase tracking-widest font-medium">{t("profile.badges")} · {earnedCount}/{badges.length}</span>
+                          <button onClick={() => setBadgesModal(false)} className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1">✕</button>
+                        </div>
+                        <div className="overflow-y-auto p-4 grid grid-cols-3 sm:grid-cols-4 gap-3">
+                          {sorted.map((badge) => {
+                            const Icon = ICON_MAP[badge.icon] ?? Star;
+                            const hasProgress = !badge.earned && badge.progress_total != null;
+                            return (
+                              <div
+                                key={badge.id}
+                                className={cn(
+                                  "flex flex-col items-center gap-2 p-3 border text-center",
+                                  badge.earned ? "border-border text-foreground" : "border-border/40 text-muted-foreground/30"
+                                )}
+                              >
+                                <Icon size={22} strokeWidth={1.5} />
+                                <div className="flex flex-col gap-0.5 w-full">
+                                  <span className="text-[10px] font-medium leading-tight">{badge.label}</span>
+                                  <span className={cn("text-[9px] leading-tight", badge.earned ? "text-muted-foreground" : "text-muted-foreground/30")}>
+                                    {badge.desc}
+                                  </span>
+                                  {hasProgress && (
+                                    <span className="text-[9px] tabular-nums text-muted-foreground/50 mt-0.5">
+                                      {badge.progress_current}/{badge.progress_total}
+                                    </span>
+                                  )}
+                                  {badge.earned_at && (
+                                    <span className="text-[9px] text-muted-foreground/50 tabular-nums mt-0.5">
+                                      {new Date(badge.earned_at).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Stats by difficulty */}
             {profile.by_difficulty?.length > 0 && (

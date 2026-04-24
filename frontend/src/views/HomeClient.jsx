@@ -10,6 +10,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { useAudio } from "@/contexts/AudioContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { Flame } from "lucide-react";
 import Footer from "@/components/Footer";
 import PreviewButton from "@/components/PreviewButton";
 
@@ -115,7 +116,15 @@ function DailyCard({ difficulty }) {
     <div className="flex flex-col gap-2">
       {/* Section header with reroll button */}
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("daily.title")}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("daily.title")}</span>
+          {data?.streak > 0 && (
+            <span className="flex items-center gap-0.5 text-[10px] text-orange-400 tabular-nums">
+              <Flame size={10} className="shrink-0" />
+              {data.streak}
+            </span>
+          )}
+        </div>
         {!loading && canReroll && (
           <button
             onClick={handleReroll}
