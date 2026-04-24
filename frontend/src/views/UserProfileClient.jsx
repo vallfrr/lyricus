@@ -99,7 +99,7 @@ export default function UserProfileClient() {
                     </span>
                   )}
                   <button
-                    onClick={async () => { await logout(); router.push("/"); }}
+                    onClick={() => logout()}
                     className="text-xs border border-border px-3 py-1.5 text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
                   >
                     {t("profile.disconnect")}
@@ -154,14 +154,14 @@ export default function UserProfileClient() {
                         return (
                           <div
                             key={badge.id}
-                            title={`${badge.label} — ${badge.desc}${badge.earned_at ? `\n${new Date(badge.earned_at).toLocaleDateString()}` : ""}`}
+                            title={`${t(`badge.${badge.id}.label`) || badge.label} — ${t(`badge.${badge.id}.desc`) || badge.desc}${badge.earned_at ? `\n${new Date(badge.earned_at).toLocaleDateString()}` : ""}`}
                             className={cn(
                               "flex flex-col items-center gap-1.5 p-2 border transition-colors",
                               badge.earned ? "border-border text-foreground" : "border-border/40 text-muted-foreground/30"
                             )}
                           >
                             <Icon size={20} strokeWidth={1.5} />
-                            <span className="text-[9px] text-center leading-tight truncate w-full">{badge.label}</span>
+                            <span className="text-[9px] text-center leading-tight truncate w-full">{t(`badge.${badge.id}.label`) || badge.label}</span>
                           </div>
                         );
                       })}
@@ -205,9 +205,9 @@ export default function UserProfileClient() {
                               >
                                 <Icon size={22} strokeWidth={1.5} />
                                 <div className="flex flex-col gap-0.5 w-full">
-                                  <span className="text-[10px] font-medium leading-tight">{badge.label}</span>
+                                  <span className="text-[10px] font-medium leading-tight">{t(`badge.${badge.id}.label`) || badge.label}</span>
                                   <span className={cn("text-[9px] leading-tight", badge.earned ? "text-muted-foreground" : "text-muted-foreground/30")}>
-                                    {badge.desc}
+                                    {t(`badge.${badge.id}.desc`) || badge.desc}
                                   </span>
                                   {hasProgress && (
                                     <span className="text-[9px] tabular-nums text-muted-foreground/50 mt-0.5">
@@ -316,6 +316,7 @@ export default function UserProfileClient() {
                         </div>
                         <div className={cn("px-2 py-2.5 text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
                           {DIFF_LABELS[g.difficulty] ?? g.difficulty}
+                          {g.is_daily && <span className="ml-1 text-[9px] text-muted-foreground/60 uppercase">·{t("history.daily")}</span>}
                         </div>
                         <div className="px-2 py-2.5 text-xs tabular-nums font-medium">{pct}%</div>
                         <div className="px-2 py-2.5 text-xs tabular-nums text-muted-foreground">{date}</div>

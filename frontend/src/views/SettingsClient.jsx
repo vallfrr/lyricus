@@ -177,7 +177,6 @@ export default function SettingsClient() {
     try {
       await fetch("/api/auth/me", { method: "DELETE", credentials: "include" });
       await logout();
-      router.push("/");
     } catch {
       setDeleting(false);
       setDeleteStep(0);

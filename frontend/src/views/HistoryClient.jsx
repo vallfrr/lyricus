@@ -138,8 +138,13 @@ export default function HistoryClient() {
                       onClick={() => {
                         const p = new URLSearchParams({ artist: g.artist, title: g.title, difficulty: g.difficulty, mode: "flow" });
                         if (g.cover) p.set("cover", g.cover);
-                        // For DB sessions, pass session_id so GameClient reuses stored tokens
-                        if (g._fromDb && g.id) p.set("session_id", g.id);
+                        if (g._fromDb && g.id) {
+                          // DB session: pass session_id (GameClient fetches tokens, no banner)
+                          p.set("session_id", g.id);
+                        } else {
+                          // localStorage session: skip the banner directly
+                          p.set("resume", "1");
+                        }
                         router.push(`/game?${p}`);
                       }}
                       className="text-[10px] border border-foreground px-2.5 py-1 hover:bg-foreground hover:text-background transition-colors shrink-0"

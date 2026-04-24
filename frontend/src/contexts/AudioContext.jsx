@@ -22,6 +22,7 @@ export function AudioProvider({ children }) {
     // Create element once
     if (!audioRef.current) {
       audioRef.current = new Audio();
+      audioRef.current.volume = 0.5;
       audioRef.current.onended = () => {
         playingRef.current = null;
         setPlaying(null);

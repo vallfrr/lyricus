@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -43,13 +43,13 @@ function clearProgress(artist, title, difficulty, mode) {
 }
 
 /** Start an unfinished DB session with the game's seed; returns id or null. */
-async function startDbSession(artist, title, album, cover, difficulty, mode, seed) {
+async function startDbSession(artist, title, album, cover, difficulty, mode, seed, isDaily = false) {
   try {
     const r = await fetch("/api/history/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ artist, title, album, cover, difficulty, mode, seed }),
+      body: JSON.stringify({ artist, title, album, cover, difficulty, mode, seed, is_daily: isDaily }),
     });
     if (!r.ok) return null;
     const d = await r.json();
@@ -127,6 +127,16 @@ export default function GameClient() {
   const challengeTotal = searchParams.get("challenge_total");
   const challengeFrom  = searchParams.get("from");
   const isChallenge = !!challengeScore && !!challengeTotal;
+  const isDaily    = searchParams.get("is_daily") === "1";
+  const revealAll  = searchParams.get("reveal_all") === "1";
+  const autoResume = searchParams.get("resume") === "1";
+
+  // Timestamp of next UTC midnight (for daily auto-stop)
+  const midnightMs = useMemo(() => {
+    if (!isDaily) return null;
+    const now = new Date();
+    return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  }, [isDaily]);
 
   const DIFF_LABELS = {
     easy: t("diff.easy"), medium: t("diff.medium"),
@@ -232,8 +242,28 @@ export default function GameClient() {
     }
   }, [artist, title, difficulty, mode, cover, gameData, dbSessionId]);
 
+  // When resume=1 is in URL (from DailyCard or history), skip the banner and auto-resume
+  useEffect(() => {
+    if (!autoResume || !savedProgress || !gameData || resumeDecided) return;
+    setInitialProgress(savedProgress);
+    latestDataRef.current = savedProgress;
+    if (savedProgress?.timer) timer.setSeconds(savedProgress.timer);
+    if (savedProgress?.dbSessionId) setDbSessionId(savedProgress.dbSessionId);
+    setResumeDecided(true);
+    timer.start();
+  }, [autoResume, savedProgress, gameData, resumeDecided]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When in correction/reveal mode, set finished state as soon as lyrics load
+  useEffect(() => {
+    if (!revealAll || !gameData || finished) return;
+    const blanks = gameData.tokens.filter(t => t.type === "blank");
+    setFinished(true);
+    setScore({ correct: blanks.length, total: blanks.length });
+  }, [revealAll, gameData]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // When a new game actually starts (no resume), create an unfinished DB session with the tokens
   useEffect(() => {
+    if (revealAll) return; // No DB session for correction view
     if (!resumeDecided || dbSessionId || !user || !gameData) return;
     // Only start a DB session for fresh games (initialProgress === null)
     if (initialProgress !== null) return;
@@ -245,11 +275,12 @@ export default function GameClient() {
       cover,
       difficulty,
       mode,
-      gameData.seed
+      gameData.seed,
+      isDaily,
     ).then((id) => {
       if (id) setDbSessionId(id);
     });
-  }, [resumeDecided, dbSessionId, user, gameData, initialProgress, artist, title, album, cover, difficulty, mode]);
+  }, [resumeDecided, dbSessionId, user, gameData, initialProgress, artist, title, album, cover, difficulty, mode, isDaily, revealAll]);
 
   useEffect(() => {
     if (!timer.running) return;
@@ -284,6 +315,7 @@ export default function GameClient() {
   }, [timer.running, dbSessionId, artist, title, difficulty, mode, cover, gameData, initialProgress]);
 
   const handleReveal = useCallback(async (data) => {
+    if (revealAll) return; // Correction view — don't save to DB
     timer.stop();
     setFinished(true);
     setScore(data?.score ?? null);
@@ -410,14 +442,24 @@ export default function GameClient() {
       {isChallenge && !finished && (
         <div className="border-b border-border bg-secondary/30 px-4 py-2 text-xs text-muted-foreground text-center">
           {challengeFrom
-            ? <><span className="text-foreground font-medium">{challengeFrom}</span> t'a lancé un défi · score à battre : <span className="text-foreground font-medium tabular-nums">{challengeScore}%</span></>
-            : <>score à battre : <span className="text-foreground font-medium tabular-nums">{challengeScore}%</span></>
+            ? <><span className="text-foreground font-medium">{challengeFrom}</span> {t("game.challenge.from_txt")} · {t("game.challenge.score_txt")} : <span className="text-foreground font-medium tabular-nums">{challengeScore}%</span></>
+            : <>{t("game.challenge.score_txt")} : <span className="text-foreground font-medium tabular-nums">{challengeScore}%</span></>
           }
         </div>
       )}
+      {revealAll && (
+        <div className="border-b border-border bg-secondary/30 px-4 py-2 text-xs text-muted-foreground text-center">
+          {t("game.correction")}
+        </div>
+      )}
+      {isDaily && !finished && !revealAll && (
+        <div className="border-b border-border bg-secondary/30 px-4 py-2 text-xs text-muted-foreground text-center">
+          {t("daily.title")}
+        </div>
+      )}
 
-      {/* Resume banner */}
-      {savedProgress && !resumeDecided && gameData && (
+      {/* Resume banner — only shown when NOT arriving via an explicit resume button */}
+      {savedProgress && !resumeDecided && gameData && !revealAll && !autoResume && (
         <div className="border-b border-border bg-secondary/40 px-4 py-3 flex items-center justify-between gap-4 max-w-2xl mx-auto w-full">
           <span className="text-xs text-muted-foreground">{t("game.resume.prompt")}</span>
           <div className="flex gap-2 shrink-0">
@@ -449,14 +491,21 @@ export default function GameClient() {
           </div>
         )}
 
-        {gameData && (savedProgress === null || resumeDecided) && (
+        {gameData && (savedProgress === null || resumeDecided || revealAll) && (
           <FlowGame
             tokens={initialProgress?.tokens ?? gameData.tokens}
             answers={initialProgress?.answers ?? gameData.answers}
             onReveal={handleReveal}
             onFirstMatch={timer.start}
             onProgress={handleProgress}
-            initialRevealed={initialProgress?.type === "flow" ? (initialProgress.revealed_ids || initialProgress.revealed) : undefined}
+            initialRevealed={
+              revealAll
+                ? gameData.tokens.filter(t => t.type === "blank").map(t => t.id)
+                : (initialProgress?.type === "flow" ? (initialProgress.revealed_ids || initialProgress.revealed) : undefined)
+            }
+            startFinished={revealAll}
+            hideEndButton={isDaily}
+            autoFinishAt={midnightMs}
           />
         )}
 
@@ -464,10 +513,10 @@ export default function GameClient() {
 
         {finished && newBadges.length > 0 && (
           <div className="border border-border bg-secondary/30 px-4 py-3 flex flex-col gap-2 mb-4">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">🏅 succès débloqués</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">🏅 {t("game.new_badges")}</span>
             <div className="flex flex-wrap gap-2">
               {newBadges.map((b) => (
-                <span key={b.id} className="text-xs border border-border px-2 py-1" title={b.desc}>{b.label}</span>
+                <span key={b.id} className="text-xs border border-border px-2 py-1" title={t(`badge.${b.id}.desc`) || b.desc}>{t(`badge.${b.id}.label`) || b.label}</span>
               ))}
             </div>
           </div>
@@ -501,12 +550,14 @@ export default function GameClient() {
               >
                 {t("history.artist")}
               </Link>
-              <button
-                onClick={handleCopyChallenge}
-                className="flex-1 border border-border px-3 py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
-              >
-                {copied ? t("game.copied") : t("game.defier")}
-              </button>
+              {!isDaily && !revealAll && (
+                <button
+                  onClick={handleCopyChallenge}
+                  className="flex-1 border border-border px-3 py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+                >
+                  {copied ? t("game.copied") : t("game.defier")}
+                </button>
+              )}
             </div>
 
             <Link

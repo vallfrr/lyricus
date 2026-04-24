@@ -75,21 +75,55 @@ function useCountdown(seconds) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+function rankOrdinal(n, locale) {
+  if (locale === "fr") return n === 1 ? "1er" : `${n}ème`;
+  if (locale === "en") {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+  return String(n); // raw number — ordinal context is in the i18n template
+}
+
+function fmtTimer(s) {
+  if (!s) return null;
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
 function DailyCard({ difficulty }) {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rerolling, setRerolling] = useState(false);
+  const [yesterday, setYesterday] = useState(null);
+  const [dailyProgress, setDailyProgress] = useState(null);
   const countdown = useCountdown(data?.seconds_until_reset ?? 0);
 
   useEffect(() => {
     fetch("/api/daily", { credentials: "include" })
       .then((r) => r.json())
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        // Check localStorage for in-progress daily game
+        if (d?.artist && d?.title && !d?.completed) {
+          try {
+            const key = `lyricusProgress_${encodeURIComponent(d.artist)}_${encodeURIComponent(d.title)}_medium_flow`;
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const saved = JSON.parse(raw);
+              if (Date.now() - saved.savedAt <= 7 * 24 * 3600 * 1000) setDailyProgress(saved);
+            }
+          } catch {}
+        }
+      })
       .catch(() => setData(null))
       .finally(() => setLoading(false));
+    fetch("/api/daily/yesterday", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (d.available) setYesterday(d); })
+      .catch(() => {});
   }, [user]);
 
   async function handleReroll() {
@@ -104,9 +138,10 @@ function DailyCard({ difficulty }) {
 
   function handlePlay() {
     if (!data?.artist) return;
-    const p = new URLSearchParams({ artist: data.artist, title: data.title, difficulty, mode: "flow" });
+    const p = new URLSearchParams({ artist: data.artist, title: data.title, difficulty: "medium", mode: "flow", is_daily: "1" });
     if (data.album) p.set("album", data.album);
     if (data.cover) p.set("cover", data.cover);
+    if (dailyProgress) p.set("resume", "1");
     router.push(`/game?${p}`);
   }
 
@@ -114,7 +149,7 @@ function DailyCard({ difficulty }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Section header with reroll button */}
+      {/* Section header with reroll and yesterday buttons */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("daily.title")}</span>
@@ -125,15 +160,30 @@ function DailyCard({ difficulty }) {
             </span>
           )}
         </div>
-        {!loading && canReroll && (
-          <button
-            onClick={handleReroll}
-            disabled={rerolling}
-            className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors disabled:opacity-40 flex items-center gap-1"
-          >
-            ↻ {data.rerolls_remaining} {t("daily.reroll")}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {!loading && yesterday && (
+            <button
+              onClick={() => {
+                const p = new URLSearchParams({ artist: yesterday.artist, title: yesterday.title, reveal_all: "1" });
+                if (yesterday.album) p.set("album", yesterday.album);
+                if (yesterday.cover) p.set("cover", yesterday.cover);
+                router.push(`/game?${p}`);
+              }}
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {t("daily.yesterday")} →
+            </button>
+          )}
+          {!loading && canReroll && (
+            <button
+              onClick={handleReroll}
+              disabled={rerolling}
+              className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors disabled:opacity-40 flex items-center gap-1"
+            >
+              ↻ {data.rerolls_remaining} {t("daily.reroll")}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Card */}
@@ -176,7 +226,21 @@ function DailyCard({ difficulty }) {
                 </p>
               </div>
               {!data.completed && (
-                <span className="text-xs text-muted-foreground shrink-0">{t("daily.play")}</span>
+                <div className="flex flex-col items-end gap-0.5 shrink-0">
+                  <span className="text-xs text-muted-foreground">
+                    {dailyProgress ? t("history.resume") + " →" : t("daily.play")}
+                  </span>
+                  {dailyProgress && (() => {
+                    const revealed = dailyProgress.revealed_ids?.length ?? dailyProgress.revealed?.length ?? 0;
+                    const total = dailyProgress.total ?? 0;
+                    const timer = fmtTimer(dailyProgress.timer);
+                    return (
+                      <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                        {total > 0 ? `${revealed}/${total}` : null}{timer ? ` · ${timer}` : null}
+                      </span>
+                    );
+                  })()}
+                </div>
               )}
             </button>
 
@@ -184,6 +248,16 @@ function DailyCard({ difficulty }) {
             {data.completed && (
               <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-1 pointer-events-none">
                 <span className="text-xs font-medium">✓ {t("daily.completed")}</span>
+                {data.completion_rank && (() => {
+                  const template = t("daily.completion_rank");
+                  const parts = template.split("{{n}}");
+                  const ordinal = rankOrdinal(data.completion_rank, locale);
+                  return (
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      {parts[0]}<strong className="text-foreground font-semibold">{ordinal}</strong>{parts[1] ?? ""}
+                    </span>
+                  );
+                })()}
                 <span className="text-[10px] text-muted-foreground tabular-nums">
                   {t("daily.next_reset")} {countdown}
                 </span>

@@ -49,7 +49,7 @@ export default function ChallengeClient() {
         <div className="flex flex-col gap-1">
           <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("challenge.title")}</span>
           <h1 className="text-xl font-semibold tracking-tight">
-            {from ? `${from} te lance un défi` : t("challenge.generic")}
+            {from ? `${from} ${t("challenge.from_challenge")}` : t("challenge.generic")}
           </h1>
         </div>
 
@@ -69,7 +69,7 @@ export default function ChallengeClient() {
         <div className="border border-border px-4 py-4 flex flex-col items-center gap-1">
           <span className="text-3xl font-bold tabular-nums">{challengeScore}%</span>
           <span className="text-xs text-muted-foreground">
-            {from ? `score de ${from}` : t("challenge.score.label")} · {challengeTotal} {t("challenge.words")}
+            {from ? `${t("challenge.score_from")} ${from}` : t("challenge.score.label")} · {challengeTotal} {t("challenge.words")}
           </span>
         </div>
 
