@@ -8,6 +8,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { cn } from "@/lib/utils";
 
+function normalize(s) {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
 function fmt(iso) {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
@@ -50,6 +54,7 @@ export default function HistoryClient() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inProgress, setInProgress] = useState([]);
+  const [search, setSearch] = useState("");
 
   const DIFF_LABELS = {
     easy: t("diff.easy"), medium: t("diff.medium"),
@@ -168,8 +173,20 @@ export default function HistoryClient() {
         )}
 
         {!loading && history.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("history.search")}
+              className="w-full h-8 px-3 text-xs bg-background text-foreground placeholder:text-muted-foreground border border-border focus:outline-none focus:border-foreground transition-colors"
+            />
           <div className="border border-border">
-            {history.map((g) => {
+            {history.filter((g) => {
+              const q = normalize(search.trim());
+              if (!q) return true;
+              return normalize(g.title).includes(q) || normalize(g.artist).includes(q);
+            }).map((g) => {
               const pct = g.score_total > 0 ? Math.round(g.score_correct * 100 / g.score_total) : 0;
               const mainArtist = cleanArtist(g.artist);
               return (
@@ -215,6 +232,7 @@ export default function HistoryClient() {
                 </div>
               );
             })}
+          </div>
           </div>
         )}
       </main>
