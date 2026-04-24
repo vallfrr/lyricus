@@ -88,3 +88,19 @@ ALTER TABLE game_sessions DROP COLUMN IF EXISTS game_tokens;
 ALTER TABLE game_sessions DROP COLUMN IF EXISTS game_answer_token;
 ALTER TABLE game_sessions DROP COLUMN IF EXISTS game_answers;
 ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS seed BIGINT;
+ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'finished';
+
+CREATE TABLE IF NOT EXISTS daily_challenges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    artist TEXT NOT NULL,
+    title TEXT NOT NULL,
+    album TEXT DEFAULT '',
+    cover TEXT DEFAULT '',
+    rerolls_used INT NOT NULL DEFAULT 0,
+    reroll_history JSONB NOT NULL DEFAULT '[]',
+    completed_at TIMESTAMPTZ,
+    UNIQUE(user_id, date)
+);
+CREATE INDEX IF NOT EXISTS daily_challenges_user_date_idx ON daily_challenges(user_id, date);

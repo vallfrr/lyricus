@@ -6,6 +6,7 @@ import NavBar from "@/components/NavBar";
 import { cn } from "@/lib/utils";
 import { OAuthButton, GoogleSvg, DiscordSvg, AppleSvg, FacebookSvg } from "@/components/OAuthButtons";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 function EyeIcon({ open }) {
   return open ? (
@@ -25,6 +26,7 @@ function EyeIcon({ open }) {
 export default function RegisterClient() {
   const router = useRouter();
   const { t } = useI18n();
+  const { refreshUser } = useAuth();
 
   const RULES = [
     { key: "register.rule.length", check: (p) => p.length >= 8 },
@@ -62,6 +64,7 @@ export default function RegisterClient() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || t("auth.error")); return; }
+      await refreshUser();
       router.push("/setup");
     } catch {
       setError(t("auth.error.network"));

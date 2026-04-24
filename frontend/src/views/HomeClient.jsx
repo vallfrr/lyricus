@@ -8,7 +8,7 @@ import GenrePicker from "@/components/GenrePicker";
 import DifficultySelector from "@/components/DifficultySelector";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAudio } from "@/contexts/AudioContext";
-import { LOCALE_META } from "@/lib/i18n";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import Footer from "@/components/Footer";
 import PreviewButton from "@/components/PreviewButton";
@@ -61,72 +61,130 @@ function Section({ label, children }) {
   );
 }
 
-function DailyCard({ chartKey, label, t, difficulty, mode }) {
+function useCountdown(seconds) {
+  const [remaining, setRemaining] = useState(seconds);
+  useEffect(() => {
+    setRemaining(seconds);
+    const id = setInterval(() => setRemaining((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(id);
+  }, [seconds]);
+  const h = Math.floor(remaining / 3600);
+  const m = Math.floor((remaining % 3600) / 60);
+  const s = remaining % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function DailyCard({ difficulty, mode }) {
   const router = useRouter();
-  const [song, setSong] = useState(null);
+  const { t } = useI18n();
+  const { user } = useAuth();
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [rerolling, setRerolling] = useState(false);
+  const countdown = useCountdown(data?.seconds_until_reset ?? 0);
 
   useEffect(() => {
-    fetch(`/api/daily?chart=${chartKey}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => setSong(d))
-      .catch(() => setSong(null))
+    fetch("/api/daily", { credentials: "include" })
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [chartKey]);
+  }, [user]);
+
+  async function handleReroll() {
+    if (rerolling || !data || data.rerolls_remaining <= 0 || data.completed) return;
+    setRerolling(true);
+    try {
+      const r = await fetch("/api/daily/reroll", { method: "POST", credentials: "include" });
+      if (r.ok) setData(await r.json());
+    } catch {}
+    setRerolling(false);
+  }
 
   function handlePlay() {
-    if (!song) return;
-    const p = new URLSearchParams({ artist: song.artist, title: song.title, difficulty, mode });
-    if (song.album) p.set("album", song.album);
-    if (song.cover) p.set("cover", song.cover);
+    if (!data?.artist) return;
+    const p = new URLSearchParams({ artist: data.artist, title: data.title, difficulty, mode });
+    if (data.album) p.set("album", data.album);
+    if (data.cover) p.set("cover", data.cover);
     router.push(`/game?${p}`);
   }
 
+  const canReroll = data && !data.locked && !data.completed && data.rerolls_remaining > 0;
+
   return (
-    <div className="border border-border flex flex-col overflow-hidden">
-      <div className="px-3 py-1.5 border-b border-border flex items-center justify-between bg-secondary/40">
-        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{label}</span>
-        {song && (
-          <span className="text-[10px] text-muted-foreground tabular-nums">
-            {t("daily.rank")} {song.chart_rank}
-          </span>
+    <div className="flex flex-col gap-2">
+      {/* Section header with reroll button */}
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("daily.title")}</span>
+        {!loading && canReroll && (
+          <button
+            onClick={handleReroll}
+            disabled={rerolling}
+            className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors disabled:opacity-40 flex items-center gap-1"
+          >
+            ↻ {data.rerolls_remaining} {t("daily.reroll")}
+          </button>
         )}
       </div>
 
-      {loading && (
-        <div className="px-3 py-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-secondary animate-pulse shrink-0" />
-          <div className="flex flex-col gap-1.5 flex-1">
-            <div className="h-3 bg-secondary animate-pulse w-3/4" />
-            <div className="h-2.5 bg-secondary animate-pulse w-1/2" />
+      {/* Card */}
+      <div className="border border-border flex flex-col overflow-hidden">
+        {loading && (
+          <div className="px-3 py-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-secondary animate-pulse shrink-0" />
+            <div className="flex flex-col gap-1.5 flex-1">
+              <div className="h-3 bg-secondary animate-pulse w-3/4" />
+              <div className="h-2.5 bg-secondary animate-pulse w-1/2" />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {!loading && !song && (
-        <p className="px-3 py-4 text-xs text-muted-foreground">{t("daily.unavailable")}</p>
-      )}
+        {!loading && data?.locked && (
+          <p className="px-3 py-4 text-xs text-muted-foreground">
+            {data.reason === "auth" ? t("daily.locked.auth") : t("daily.locked.no_games")}
+          </p>
+        )}
 
-      {!loading && song && (
-        <button
-          onClick={handlePlay}
-          className="flex items-center gap-3 px-3 py-3 hover:bg-accent transition-colors text-left w-full"
-        >
-          {song.cover
-            ? <img src={song.cover} alt={song.title} width={40} height={40} className="w-10 h-10 object-cover border border-border shrink-0" />
-            : <div className="w-10 h-10 border border-border shrink-0 bg-secondary" />
-          }
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{song.title}</p>
-            <Link
-              href={`/artist/${encodeURIComponent(cleanArtist(song.artist))}`}
-              className="text-xs text-muted-foreground truncate block hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >{song.artist}</Link>
+        {!loading && !data?.locked && data?.artist && (
+          <div className="relative">
+            <button
+              onClick={handlePlay}
+              disabled={data.completed}
+              className="flex items-center gap-3 px-3 py-3 hover:bg-accent transition-colors text-left w-full disabled:cursor-default"
+            >
+              {data.cover
+                ? <img src={data.cover} alt={data.title} width={40} height={40} className="w-10 h-10 object-cover border border-border shrink-0" />
+                : <div className="w-10 h-10 border border-border shrink-0 bg-secondary" />
+              }
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{data.title}</p>
+                <Link
+                  href={`/artist/${encodeURIComponent(cleanArtist(data.artist))}`}
+                  className="text-xs text-muted-foreground truncate block hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >{data.artist}</Link>
+              </div>
+              {!data.completed && (
+                <span className="text-xs text-muted-foreground shrink-0">{t("daily.play")}</span>
+              )}
+            </button>
+
+            {/* Completion overlay */}
+            {data.completed && (
+              <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-1 pointer-events-none">
+                <span className="text-xs font-medium">✓ {t("daily.completed")}</span>
+                <span className="text-[10px] text-muted-foreground tabular-nums">
+                  {t("daily.next_reset")} {countdown}
+                </span>
+              </div>
+            )}
           </div>
-          <span className="text-xs text-muted-foreground shrink-0">{t("daily.play")}</span>
-        </button>
-      )}
+        )}
+
+        {!loading && !data?.locked && !data?.artist && (
+          <p className="px-3 py-4 text-xs text-muted-foreground">{t("daily.unavailable")}</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -134,7 +192,7 @@ function DailyCard({ chartKey, label, t, difficulty, mode }) {
 export default function HomeClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { stop } = useAudio();
   const [difficulty, setDifficulty] = useState("medium");
   const [mode, setMode] = useState("normal");
@@ -190,12 +248,7 @@ export default function HomeClient() {
           <p className="text-sm text-muted-foreground mt-1">{t("home.tagline")}</p>
         </div>
 
-        <Section label={t("daily.title")}>
-          <div className="flex flex-col gap-2">
-            <DailyCard chartKey="global" label={t("daily.mondial")} t={t} difficulty={difficulty} mode={mode} />
-            <DailyCard chartKey={LOCALE_META[locale]?.chart ?? "fr"} label={t("daily.lang")} t={t} difficulty={difficulty} mode={mode} />
-          </div>
-        </Section>
+        <DailyCard difficulty={difficulty} mode={mode} />
 
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
           <div className="flex-1 border-t border-border" />{t("home.or")}<div className="flex-1 border-t border-border" />
