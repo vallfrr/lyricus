@@ -95,21 +95,17 @@ export default function LyricsGame({ tokens, answerToken, onReveal, onFirstMatch
             if (revealed) {
               const isOk = results[id];
               return (
-                <span key={i} className="inline-flex flex-col items-center align-middle mx-0.5">
-                  <span
-                    className={cn(
-                      "inline-block px-1 border-b-2 text-sm",
-                      isOk
-                        ? "border-foreground font-semibold"
-                        : "border-border text-muted-foreground/60 line-through"
-                    )}
-                    style={{ minWidth: width }}
-                  >
-                    {userAnswers[id] || "—"}
-                  </span>
-                  {!isOk && expected && (
-                    <span className="text-[10px] text-foreground mt-0.5">{expected}</span>
+                <span
+                  key={i}
+                  className={cn(
+                    "inline font-semibold border-b mx-0.5",
+                    isOk
+                      ? "border-foreground/40"
+                      : "text-red-500 border-red-500/40"
                   )}
+                  title={!isOk && expected ? expected : undefined}
+                >
+                  {isOk ? (userAnswers[id] || expected) : expected}
                 </span>
               );
             }

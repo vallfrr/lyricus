@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json as json_mod
 import os
 import random
@@ -249,18 +250,28 @@ async def _fallback_challenges(
     return valid[:count]
 
 
+def _daily_seed(date, artist: str, title: str) -> int:
+    """Deterministic seed for a given day + song so hidden words never change on refresh."""
+    raw = f"{date}:{artist.lower()}:{title.lower()}"
+    return int(hashlib.md5(raw.encode()).hexdigest()[:8], 16) % 100_000
+
+
 def _row_to_dict(row, ttl: int, preview: str = "", streak: int = 0, longest_streak: int = 0) -> dict:
+    seed = row["seed"] if row.get("seed") is not None else None
     return {
         "artist":            row["artist"],
         "title":             row["title"],
         "album":             row["album"] or "",
         "cover":             row["cover"] or "",
         "preview":           preview,
+        "seed":              seed,
         "rerolls_used":      row["rerolls_used"],
         "rerolls_remaining": MAX_REROLLS - row["rerolls_used"],
         "completed":         row["completed_at"] is not None,
         "completed_at":      row["completed_at"].isoformat() if row["completed_at"] else None,
         "completion_rank":   row["completion_rank"] if row.get("completion_rank") else None,
+        "abandoned":         row["abandoned_at"] is not None,
+        "abandoned_at":      row["abandoned_at"].isoformat() if row["abandoned_at"] else None,
         "seconds_until_reset": ttl,
         "streak":            streak,
         "longest_streak":    longest_streak,
@@ -347,6 +358,13 @@ async def get_daily(request):
         user_id, today,
     )
     if row:
+        # Backfill seed for rows created before seed column was added
+        if row["seed"] is None:
+            seed = _daily_seed(today, row["artist"], row["title"])
+            await pool.execute(
+                "UPDATE daily_challenges SET seed=$1 WHERE user_id=$2 AND date=$3",
+                seed, user_id, today,
+            )
         await _maybe_mark_completed(pool, user_id, today, row["artist"], row["title"])
         row = await pool.fetchrow(
             "SELECT * FROM daily_challenges WHERE user_id = $1 AND date = $2",
@@ -374,18 +392,19 @@ async def get_daily(request):
 
     challenge  = songs[0]
     candidates = songs[1:]  # pre-generated reroll queue
+    seed       = _daily_seed(today, challenge["artist"], challenge["title"])
 
     row = await pool.fetchrow(
         """
-        INSERT INTO daily_challenges (user_id, date, artist, title, album, cover, candidates)
-        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+        INSERT INTO daily_challenges (user_id, date, artist, title, album, cover, candidates, seed)
+        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
         ON CONFLICT (user_id, date) DO UPDATE SET artist = EXCLUDED.artist
         RETURNING *
         """,
         user_id, today,
         challenge["artist"], challenge["title"],
         challenge.get("album", ""), challenge.get("cover", ""),
-        json_mod.dumps(candidates),
+        json_mod.dumps(candidates), seed,
     )
     streak, longest = await _get_streak(pool, user_id)
     return json(_row_to_dict(row, ttl, challenge.get("preview", ""), streak, longest))
@@ -412,6 +431,8 @@ async def reroll_daily(request):
         raise SanicException("No rerolls remaining", status_code=429)
     if row["completed_at"] is not None:
         raise SanicException("Challenge already completed", status_code=400)
+    if row["abandoned_at"] is not None:
+        raise SanicException("Challenge already abandoned", status_code=400)
 
     reroll_history = json_mod.loads(row["reroll_history"]) if row["reroll_history"] else []
     candidates     = json_mod.loads(row["candidates"])     if row.get("candidates") else []
@@ -431,23 +452,57 @@ async def reroll_daily(request):
 
     reroll_history.append({"artist": row["artist"], "title": row["title"]})
 
+    new_seed = _daily_seed(today, challenge["artist"], challenge["title"])
     updated = await pool.fetchrow(
         """
         UPDATE daily_challenges
         SET artist = $1, title = $2, album = $3, cover = $4,
             rerolls_used = rerolls_used + 1,
             reroll_history = $5::jsonb,
-            candidates = $6::jsonb
-        WHERE user_id = $7 AND date = $8
+            candidates = $6::jsonb,
+            seed = $7
+        WHERE user_id = $8 AND date = $9
         RETURNING *
         """,
         challenge["artist"], challenge["title"],
         challenge.get("album", ""), challenge.get("cover", ""),
         json_mod.dumps(reroll_history),
         json_mod.dumps(candidates),
+        new_seed,
         user_id, today,
     )
     return json(_row_to_dict(updated, ttl, challenge.get("preview", "")))
+
+
+@daily_bp.post("/daily/abandon")
+async def abandon_daily(request):
+    payload = get_user_from_request(request)
+    if not payload:
+        raise SanicException("Unauthorized", status_code=401)
+
+    user_id = payload["sub"]
+    pool    = request.app.ctx.pool
+    today   = _utc_today()
+    ttl     = _seconds_until_midnight()
+
+    row = await pool.fetchrow(
+        "SELECT * FROM daily_challenges WHERE user_id=$1 AND date=$2", user_id, today
+    )
+    if not row:
+        raise SanicException("No active challenge", status_code=404)
+    if row["completed_at"] is not None:
+        raise SanicException("Challenge already completed", status_code=400)
+    if row["abandoned_at"] is not None:
+        # Already abandoned — just return current state
+        enrich = await _deezer_enrich(request.app.ctx.session, row["artist"], row["title"])
+        return json(_row_to_dict(row, ttl, enrich.get("preview", "")))
+
+    updated = await pool.fetchrow(
+        "UPDATE daily_challenges SET abandoned_at=NOW() WHERE user_id=$1 AND date=$2 RETURNING *",
+        user_id, today,
+    )
+    enrich = await _deezer_enrich(request.app.ctx.session, updated["artist"], updated["title"])
+    return json(_row_to_dict(updated, ttl, enrich.get("preview", "")))
 
 
 @daily_bp.get("/daily/yesterday")

@@ -70,17 +70,22 @@ async function updateDbProgress(sessionId, data) {
   } catch {}
 }
 
-/** Finish a DB session with the final score. */
+/** Finish a DB session with the final score. Returns points_gained or 0. */
 async function finishDbSession(sessionId, data) {
-  if (!sessionId) return;
+  if (!sessionId) return 0;
   try {
-    await fetch(`/api/history/${sessionId}`, {
+    const r = await fetch(`/api/history/${sessionId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify(data),
     });
+    if (r.ok) {
+      const json = await r.json();
+      return json.points_gained ?? 0;
+    }
   } catch {}
+  return 0;
 }
 
 /** Delete an unfinished DB session (user discards it). */
@@ -106,6 +111,8 @@ export default function GameClient() {
   const [score, setScore] = useState(null);
   const [copied, setCopied] = useState(false);
   const [newBadges, setNewBadges] = useState([]);
+  const [pointsGained, setPointsGained] = useState(0);
+  const [abandonConfirm, setAbandonConfirm] = useState(false);
   const [savedProgress, setSavedProgress] = useState(null);
   const [resumeDecided, setResumeDecided] = useState(false);
   const [initialProgress, setInitialProgress] = useState(null);
@@ -130,6 +137,12 @@ export default function GameClient() {
   const isDaily    = searchParams.get("is_daily") === "1";
   const revealAll  = searchParams.get("reveal_all") === "1";
   const autoResume = searchParams.get("resume") === "1";
+  // found_ids: comma-separated blank IDs the user actually found (passed after abandon)
+  // null = generic correction (show all), "" = abandoned with 0 found (show all red), "1,2,3" = partial
+  const foundIdsParam = searchParams.get("found_ids");
+  const foundIds = foundIdsParam !== null
+    ? new Set(foundIdsParam ? foundIdsParam.split(",").map(Number) : [])
+    : null;
 
   // Timestamp of next UTC midnight (for daily auto-stop)
   const midnightMs = useMemo(() => {
@@ -189,9 +202,14 @@ export default function GameClient() {
     }
 
     // No session_id — standard flow: check localStorage then fetch lyrics
-    const saved = loadProgress(artist, title, difficulty, mode);
-    if (saved) {
-      setSavedProgress(saved);
+    // In correction/reveal mode, skip saved progress entirely
+    if (!revealAll) {
+      const saved = loadProgress(artist, title, difficulty, mode);
+      if (saved) {
+        setSavedProgress(saved);
+      } else {
+        setResumeDecided(true);
+      }
     } else {
       setResumeDecided(true);
     }
@@ -226,6 +244,7 @@ export default function GameClient() {
   }
 
   const handleProgress = useCallback((data) => {
+    if (revealAll) return; // Correction view — never write progress
     latestDataRef.current = data;
     lastProgressTimeRef.current = Date.now();
     const dbDetails = { ...data, timer: timer.getSeconds() };
@@ -333,16 +352,24 @@ export default function GameClient() {
       details: data?.details ? JSON.stringify(data.details) : null,
     };
     // If we already have an unfinished DB session, patch it; otherwise create a finished session
+    let gained = 0;
     if (dbSessionId) {
-      await finishDbSession(dbSessionId, payload);
+      gained = await finishDbSession(dbSessionId, payload);
     } else {
-      await fetch("/api/history/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(payload),
-      }).catch(() => {});
+      try {
+        const r = await fetch("/api/history/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          gained = d.points_gained ?? 0;
+        }
+      } catch {}
     }
+    if (gained > 0) setPointsGained(gained);
     // Check for newly unlocked badges
     try {
       const br = await fetch("/api/badges/check", { method: "POST", credentials: "include" });
@@ -378,6 +405,26 @@ export default function GameClient() {
     if (gameData?.seed != null) p.set("seed", String(gameData.seed));
     if (user?.name) p.set("from", user.name);
     return `${window.location.origin}/challenge?${p}`;
+  }
+
+  async function handleAbandon() {
+    // Capture found IDs before clearing progress
+    const revealedIds = latestDataRef.current?.revealed_ids ?? [];
+    try {
+      const r = await fetch("/api/daily/abandon", { method: "POST", credentials: "include" });
+      if (r.ok) {
+        clearProgress(artist, title, difficulty, mode);
+        if (dbSessionId) discardDbSession(dbSessionId);
+        // Store found IDs in localStorage so correction view can show found vs missed
+        try {
+          const today = new Date().toISOString().split("T")[0];
+          localStorage.setItem(`lyricusDailyFoundIds_${today}`, JSON.stringify({
+            artist, title, seed: gameData?.seed ?? null, found_ids: revealedIds,
+          }));
+        } catch {}
+        router.push("/");
+      }
+    } catch {}
   }
 
   async function handleCopyChallenge() {
@@ -479,6 +526,35 @@ export default function GameClient() {
         </div>
       )}
 
+      {/* Abandon confirmation modal */}
+      {abandonConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={() => setAbandonConfirm(false)}>
+          <div
+            className="border border-border bg-background p-6 flex flex-col gap-4 max-w-xs w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm font-medium">{t("daily.abandon.confirm")}</p>
+              <p className="text-xs text-muted-foreground">{t("daily.abandon.confirm.desc")}</p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setAbandonConfirm(false)}
+                className="border border-border px-4 py-1.5 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+              >
+                {t("settings.cancel")}
+              </button>
+              <button
+                onClick={() => { setAbandonConfirm(false); handleAbandon(); }}
+                className="border border-red-500/40 text-red-500 px-4 py-1.5 text-xs hover:bg-red-500/10 transition-colors"
+              >
+                {t("daily.abandon")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
         {loading && <LyricsSkeleton />}
 
@@ -500,16 +576,28 @@ export default function GameClient() {
             onProgress={handleProgress}
             initialRevealed={
               revealAll
-                ? gameData.tokens.filter(t => t.type === "blank").map(t => t.id)
+                ? foundIds
+                  // After abandon: show only what the user found (rest shown in red)
+                  ? gameData.tokens.filter(t => t.type === "blank" && foundIds.has(t.id)).map(t => t.id)
+                  // Generic correction (yesterday): show all words
+                  : gameData.tokens.filter(t => t.type === "blank").map(t => t.id)
                 : (initialProgress?.type === "flow" ? (initialProgress.revealed_ids || initialProgress.revealed) : undefined)
             }
             startFinished={revealAll}
             hideEndButton={isDaily}
             autoFinishAt={midnightMs}
+            isDaily={isDaily && !revealAll}
+            onAbandon={isDaily && !revealAll ? () => setAbandonConfirm(true) : undefined}
           />
         )}
 
         <div ref={finishedRef} />
+
+        {finished && pointsGained > 0 && (
+          <div className="flex items-center justify-center gap-1.5 py-3 text-sm font-medium text-foreground mb-1">
+            <span className="text-green-500 font-semibold tabular-nums">+{pointsGained} pts</span>
+          </div>
+        )}
 
         {finished && newBadges.length > 0 && (
           <div className="border border-border bg-secondary/30 px-4 py-3 flex flex-col gap-2 mb-4">

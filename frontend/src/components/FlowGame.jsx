@@ -54,7 +54,7 @@ function matchFuzzy(candidates, wordMap, currentRevealed) {
   return { newRevealed, matchCount };
 }
 
-export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onProgress, initialRevealed, hideEndButton, autoFinishAt, startFinished }) {
+export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onProgress, initialRevealed, hideEndButton, autoFinishAt, startFinished, isDaily, onAbandon }) {
   const { t } = useI18n();
   const [revealed, setRevealed] = useState(() => new Set(initialRevealed ?? []));
   const [input, setInput] = useState("");
@@ -229,21 +229,16 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
 
             if (finished) {
               return (
-                <span key={i} className="inline-flex flex-col items-center align-middle mx-0.5">
-                  <span
-                    className={cn(
-                      "inline-block px-1 border-b-2 text-sm",
-                      isRevealed
-                        ? "border-foreground font-semibold"
-                        : "border-border text-muted-foreground/60 line-through"
-                    )}
-                    style={{ minWidth: width }}
-                  >
-                    {isRevealed ? word : "—"}
-                  </span>
-                  {!isRevealed && (
-                    <span className="text-[10px] text-foreground mt-0.5">{word}</span>
+                <span
+                  key={i}
+                  className={cn(
+                    "inline font-semibold border-b mx-0.5",
+                    isRevealed
+                      ? "border-foreground/40"
+                      : "text-red-500 border-red-500/40"
                   )}
+                >
+                  {word}
                 </span>
               );
             }
@@ -320,7 +315,15 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
               </button>
             )}
 
-
+            {isDaily && onAbandon && (
+              <button
+                onClick={onAbandon}
+                className="border border-red-500/20 text-red-500/50 px-2 h-9 text-xs hover:border-red-500/60 hover:text-red-500 transition-colors shrink-0 whitespace-nowrap"
+                title={t("daily.abandon")}
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
       ) : (
