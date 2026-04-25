@@ -30,79 +30,121 @@ async def _deezer_artist_picture(session, name: str) -> str:
 leaderboard_bp = Blueprint("leaderboard", url_prefix="/api")
 
 _RANKED_CTE = """
-WITH ranked AS (
+WITH best_per_song AS (
+    SELECT
+        s.user_id,
+        LOWER(s.artist) AS artist,
+        LOWER(s.title)  AS title,
+        MAX(
+            (s.score_correct * 100.0 / s.score_total) *
+            CASE s.difficulty
+                WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
+                WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
+                ELSE 1.0 END
+        ) AS song_points
+    FROM game_sessions s
+    WHERE s.score_total > 0 AND s.status = 'finished' {period_filter}
+    GROUP BY s.user_id, LOWER(s.artist), LOWER(s.title)
+),
+ranked AS (
     SELECT
         u.id,
         u.name,
-        COUNT(*)::int                                                            AS games,
-        ROUND(AVG(
-            CASE WHEN s.score_total > 0
-                 THEN s.score_correct * 100.0 / s.score_total ELSE 0 END
-        ), 1)::float                                                             AS avg_score,
-        ROUND(MAX(
-            CASE WHEN s.score_total > 0
-                 THEN s.score_correct * 100.0 / s.score_total ELSE 0 END
-        ), 1)::float                                                             AS best_score,
+        COALESCE(u.current_streak, 0)::int                    AS streak,
+        COALESCE(ROUND(SUM(b.song_points)), 0)::bigint        AS total_points,
+        COUNT(b.song_points)::int                             AS songs,
+        COALESCE(ROUND(AVG(b.song_points), 1), 0)::float      AS avg_points,
         ROW_NUMBER() OVER (
-            ORDER BY AVG(
-                CASE WHEN s.score_total > 0
-                     THEN s.score_correct * 100.0 / s.score_total ELSE 0 END
-            ) DESC, COUNT(*) DESC
-        )::int                                                                   AS rank
-    FROM game_sessions s
-    JOIN users u ON u.id = s.user_id
-    WHERE s.score_total > 0 {period_filter}
-    GROUP BY u.id, u.name
-    HAVING COUNT(*) >= 1
+            ORDER BY SUM(b.song_points) DESC NULLS LAST
+        )::int                                                AS rank
+    FROM users u
+    JOIN best_per_song b ON b.user_id = u.id
+    WHERE u.name IS NOT NULL
+    GROUP BY u.id, u.name, u.current_streak
 )
 """
 
 
+_PER_PAGE = 100
+
+
 @leaderboard_bp.get("/leaderboard")
 async def get_leaderboard(request):
-    period = request.args.get("period", "all")
-    pool   = request.app.ctx.pool
+    period  = request.args.get("period", "all")
+    try:
+        page = max(1, int(request.args.get("page", "1")))
+    except ValueError:
+        page = 1
+
+    pool    = request.app.ctx.pool
     payload = get_user_from_request(request)
     user_id = payload["sub"] if payload else None
 
-    pf = "AND s.played_at >= NOW() - INTERVAL '7 days'" if period == "week" else ""
+    pf  = "AND s.played_at >= NOW() - INTERVAL '7 days'" if period == "week" else ""
     cte = _RANKED_CTE.format(period_filter=pf)
+    offset = (page - 1) * _PER_PAGE
 
-    if user_id:
-        # Return top 50 + current user's row (if outside top 50)
-        rows = await pool.fetch(
+    async def _fetch_page():
+        if user_id:
+            return await pool.fetch(
+                cte + """
+                SELECT id::text, name, total_points, songs, avg_points, streak, rank,
+                       (id::text = $1) AS is_me,
+                       COUNT(*) OVER()::int AS total_count
+                FROM ranked
+                ORDER BY rank
+                LIMIT $2 OFFSET $3
+                """,
+                user_id, _PER_PAGE, offset,
+            )
+        return await pool.fetch(
             cte + """
-            SELECT id::text, name, games, avg_score, best_score, rank,
-                   (id::text = $1) AS is_me
+            SELECT id::text, name, total_points, songs, avg_points, streak, rank,
+                   false AS is_me,
+                   COUNT(*) OVER()::int AS total_count
             FROM ranked
-            WHERE rank <= 50 OR id::text = $1
             ORDER BY rank
+            LIMIT $1 OFFSET $2
             """,
+            _PER_PAGE, offset,
+        )
+
+    async def _fetch_my_rank():
+        if not user_id:
+            return None
+        row = await pool.fetchrow(
+            cte + "SELECT rank FROM ranked WHERE id::text = $1",
             user_id,
         )
-    else:
-        rows = await pool.fetch(
-            cte + """
-            SELECT id::text, name, games, avg_score, best_score, rank,
-                   false AS is_me
-            FROM ranked
-            ORDER BY rank LIMIT 50
-            """,
-        )
+        return row["rank"] if row else None
+
+    rows, my_rank = await asyncio.gather(_fetch_page(), _fetch_my_rank())
+
+    total_count = rows[0]["total_count"] if rows else 0
+    total_pages = max(1, (total_count + _PER_PAGE - 1) // _PER_PAGE)
+    my_page     = ((my_rank - 1) // _PER_PAGE) + 1 if my_rank else None
 
     result = [
         {
-            "rank":       r["rank"],
-            "name":       r["name"] or "anonymous",
-            "games":      r["games"],
-            "avg_score":  r["avg_score"],
-            "best_score": r["best_score"],
-            "is_me":      r["is_me"],
+            "rank":         r["rank"],
+            "name":         r["name"] or "anonymous",
+            "total_points": int(r["total_points"]),
+            "songs":        r["songs"],
+            "avg_points":   r["avg_points"],
+            "streak":       r["streak"],
+            "is_me":        r["is_me"],
         }
         for r in rows
     ]
 
-    response = json(result)
+    response = json({
+        "rows":        result,
+        "page":        page,
+        "total_pages": total_pages,
+        "total":       total_count,
+        "my_rank":     my_rank,
+        "my_page":     my_page,
+    })
     response.headers["Cache-Control"] = "private, max-age=60"
     return response
 
@@ -115,47 +157,73 @@ async def get_user_profile(request, username: str):
 
     row = await pool.fetchrow(
         """
+        WITH user_pts AS (
+            SELECT
+                user_id,
+                COALESCE(ROUND(SUM(song_points)), 0)::bigint         AS total_points,
+                COUNT(*)::int                                         AS unique_songs,
+                COALESCE(ROUND(AVG(song_points), 1), 0)::float       AS avg_points
+            FROM (
+                SELECT user_id,
+                       MAX(
+                           (score_correct * 100.0 / score_total) *
+                           CASE difficulty
+                               WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
+                               WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
+                               ELSE 1.0 END
+                       ) AS song_points
+                FROM game_sessions
+                WHERE score_total > 0 AND status = 'finished'
+                GROUP BY user_id, LOWER(artist), LOWER(title)
+            ) best
+            GROUP BY user_id
+        )
         SELECT
             u.id::text,
             u.name,
             u.public_history,
-            COUNT(s.id)::int                                                          AS games,
-            ROUND(AVG(
-                CASE WHEN s.score_total > 0
-                     THEN s.score_correct * 100.0 / s.score_total ELSE 0 END
-            ), 1)::float                                                              AS avg_score,
-            ROUND(MAX(
-                CASE WHEN s.score_total > 0
-                     THEN s.score_correct * 100.0 / s.score_total ELSE 0 END
-            ), 1)::float                                                              AS best_score,
-            COUNT(DISTINCT s.title || '|' || s.artist)::int                          AS unique_songs
+            COUNT(DISTINCT s.id)::int                                          AS games,
+            COALESCE(p.total_points, 0)                                        AS total_points,
+            COALESCE(p.unique_songs, 0)                                        AS unique_songs,
+            COALESCE(p.avg_points, 0)                                          AS avg_points
         FROM users u
         LEFT JOIN game_sessions s ON s.user_id = u.id AND s.score_total > 0
+        LEFT JOIN user_pts p ON p.user_id = u.id
         WHERE u.name ILIKE $1
-        GROUP BY u.id, u.name, u.public_history
+        GROUP BY u.id, u.name, u.public_history, p.total_points, p.unique_songs, p.avg_points
         """,
         username,
     )
     if not row:
         return json({"error": "not found"}, status=404)
 
-    # Get rank
+    # Get rank (points-based, same formula as leaderboard)
     rank_row = await pool.fetchrow(
         """
-        WITH ranked AS (
+        WITH best_per_song AS (
+            SELECT s2.user_id,
+                   MAX(
+                       (s2.score_correct * 100.0 / s2.score_total) *
+                       CASE s2.difficulty
+                           WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
+                           WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
+                           ELSE 1.0 END
+                   ) AS song_points
+            FROM game_sessions s2
+            WHERE s2.score_total > 0 AND s2.status = 'finished'
+            GROUP BY s2.user_id, LOWER(s2.artist), LOWER(s2.title)
+        ),
+        ranked AS (
             SELECT u2.id,
                    ROW_NUMBER() OVER (
-                       ORDER BY AVG(
-                           CASE WHEN s2.score_total > 0
-                                THEN s2.score_correct * 100.0 / s2.score_total ELSE 0 END
-                       ) DESC, COUNT(*) DESC
+                       ORDER BY SUM(b.song_points) DESC NULLS LAST
                    )::int AS rank
-            FROM game_sessions s2
-            JOIN users u2 ON u2.id = s2.user_id
-            WHERE s2.score_total > 0
-            GROUP BY u2.id HAVING COUNT(*) >= 1
+            FROM users u2
+            JOIN best_per_song b ON b.user_id = u2.id
+            WHERE u2.name IS NOT NULL
+            GROUP BY u2.id
         )
-        SELECT rank FROM ranked WHERE id = $1
+        SELECT rank FROM ranked WHERE id = $1::uuid
         """,
         row["id"],
     )
@@ -244,9 +312,9 @@ async def get_user_profile(request, username: str):
     response = json({
         "name":             row["name"],
         "games":            row["games"],
-        "avg_score":        row["avg_score"],
-        "best_score":       row["best_score"],
-        "unique_songs":     row["unique_songs"],
+        "total_points":     int(row["total_points"] or 0),
+        "unique_songs":     int(row["unique_songs"] or 0),
+        "avg_points":       float(row["avg_points"] or 0),
         "rank":             rank_row["rank"] if rank_row else None,
         "streak":           streak,
         "top_artists":      top_artists,

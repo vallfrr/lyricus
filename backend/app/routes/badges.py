@@ -34,6 +34,12 @@ BADGES = [
     {"id": "daily_night",     "label": "noctambule",      "desc": "compléter le défi après 23h",          "icon": "Moon"},
     {"id": "daily_10",        "label": "challenger",      "desc": "compléter 10 défis du jour",           "icon": "Medal"},
     {"id": "daily_30",        "label": "assidu",          "desc": "compléter 30 défis du jour",           "icon": "Award"},
+    # Points
+    {"id": "pts_500",         "label": "compositeur",     "desc": "atteindre 500 points",                 "icon": "Music2"},
+    {"id": "pts_2000",        "label": "virtuose",        "desc": "atteindre 2 000 points",               "icon": "Star"},
+    {"id": "pts_5000",        "label": "maestro",         "desc": "atteindre 5 000 points",               "icon": "Wand2"},
+    {"id": "pts_15000",       "label": "légendaire",      "desc": "atteindre 15 000 points",              "icon": "Trophy"},
+    {"id": "pts_50000",       "label": "iconique",        "desc": "atteindre 50 000 points",              "icon": "Crown"},
 ]
 
 BADGE_IDS = {b["id"] for b in BADGES}
@@ -58,6 +64,24 @@ async def _get_user_progress(conn, user_id: str) -> dict:
     streak = (user_row["current_streak"] or 0) if user_row else 0
     daily_done = await conn.fetchval(
         "SELECT COUNT(*) FROM daily_challenges WHERE user_id=$1 AND completed_at IS NOT NULL", user_id)
+    pts_row = await conn.fetchval(
+        """
+        SELECT COALESCE(ROUND(SUM(song_points)), 0)::bigint FROM (
+            SELECT MAX(
+                (score_correct * 100.0 / score_total) *
+                CASE difficulty
+                    WHEN 'easy' THEN 1.0 WHEN 'medium' THEN 1.5
+                    WHEN 'hard' THEN 2.5 WHEN 'extreme' THEN 4.0
+                    ELSE 1.0 END
+            ) AS song_points
+            FROM game_sessions
+            WHERE user_id=$1 AND score_total>0 AND status='finished'
+            GROUP BY LOWER(artist), LOWER(title)
+        ) sub
+        """,
+        user_id,
+    )
+    total_pts = int(pts_row or 0)
 
     return {
         "first_game":      (min(total, 1),        1),
@@ -77,6 +101,11 @@ async def _get_user_progress(conn, user_id: str) -> dict:
         "streak_30":       (min(streak, 30),       30),
         "daily_10":        (min(daily_done, 10),   10),
         "daily_30":        (min(daily_done, 30),   30),
+        "pts_500":         (min(total_pts, 500),   500),
+        "pts_2000":        (min(total_pts, 2000),  2000),
+        "pts_5000":        (min(total_pts, 5000),  5000),
+        "pts_15000":       (min(total_pts, 15000), 15000),
+        "pts_50000":       (min(total_pts, 50000), 50000),
         # daily_morning / daily_night have no numeric progress
     }
 
@@ -112,6 +141,14 @@ async def check_and_award(pool, user_id: str) -> list[str]:
         if progress["streak_30"][0]       >= 30:  candidates.append("streak_30")
         if progress["daily_10"][0]        >= 10:  candidates.append("daily_10")
         if progress["daily_30"][0]        >= 30:  candidates.append("daily_30")
+
+        # pts_50000 progress is min(total_pts, 50000) — sufficient for all thresholds ≤ 50000
+        _pts = progress["pts_50000"][0]
+        if _pts >= 500:   candidates.append("pts_500")
+        if _pts >= 2000:  candidates.append("pts_2000")
+        if _pts >= 5000:  candidates.append("pts_5000")
+        if _pts >= 15000: candidates.append("pts_15000")
+        if _pts >= 50000: candidates.append("pts_50000")
 
         new_ids = []
         for bid in candidates:

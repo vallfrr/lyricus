@@ -148,6 +148,34 @@ async def delete_user_playlist(pool, user_id: str, playlist_id: str) -> bool:
         return res == "DELETE 1"
 
 
+_DIFF_MULT = {"easy": 1.0, "medium": 1.5, "hard": 2.5, "extreme": 4.0}
+
+_POINTS_SQL = """
+    SELECT COALESCE(MAX(
+        (score_correct * 100.0 / score_total) *
+        CASE difficulty
+            WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
+            WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
+            ELSE 1.0 END
+    ), 0)
+    FROM game_sessions
+    WHERE user_id=$1 AND LOWER(artist)=$2 AND LOWER(title)=$3
+      AND score_total > 0 AND status = 'finished'
+"""
+
+async def compute_points_gained(pool, user_id: str, artist: str, title: str,
+                                difficulty: str, score_correct: int, score_total: int) -> tuple[int, int]:
+    """Returns (new_song_points, gained_points).
+    Call BEFORE saving/finishing the current session so it's not yet in 'finished' state."""
+    if score_total == 0:
+        return 0, 0
+    mult     = _DIFF_MULT.get(difficulty, 1.0)
+    new_pts  = (score_correct * 100.0 / score_total) * mult
+    old_best = await pool.fetchval(_POINTS_SQL, user_id, artist.lower(), title.lower())
+    gained   = max(0.0, new_pts - float(old_best or 0))
+    return round(new_pts), round(gained)
+
+
 async def save_game_session(pool, user_id: str, data: dict) -> str:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(

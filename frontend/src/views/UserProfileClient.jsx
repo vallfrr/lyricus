@@ -111,8 +111,8 @@ export default function UserProfileClient() {
             {/* Stats grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-border">
               <StatBox label={t("profile.games")} value={profile.games} />
-              <StatBox label={t("profile.avg")} value={profile.avg_score != null ? `${profile.avg_score}%` : null} />
-              <StatBox label={t("profile.best")} value={profile.best_score != null ? `${profile.best_score}%` : null} />
+              <StatBox label={t("profile.best")} value={profile.total_points != null ? profile.total_points.toLocaleString() : null} />
+              <StatBox label={t("profile.avg")} value={profile.avg_points != null ? profile.avg_points : null} />
               <StatBox label={t("profile.songs")} value={profile.unique_songs} />
             </div>
 
