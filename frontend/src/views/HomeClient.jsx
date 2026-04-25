@@ -127,11 +127,19 @@ function DailyCard({ difficulty }) {
   }, [user]);
 
   async function handleReroll() {
-    if (rerolling || !data || data.rerolls_remaining <= 0 || data.completed) return;
+    if (rerolling || !data || data.rerolls_remaining <= 0 || data.completed || dailyProgress) return;
     setRerolling(true);
     try {
       const r = await fetch("/api/daily/reroll", { method: "POST", credentials: "include" });
-      if (r.ok) setData(await r.json());
+      if (r.ok) {
+        // Clear progress for the old song from localStorage
+        try {
+          const oldKey = `lyricusProgress_${encodeURIComponent(data.artist)}_${encodeURIComponent(data.title)}_medium_flow`;
+          localStorage.removeItem(oldKey);
+        } catch {}
+        setDailyProgress(null);
+        setData(await r.json());
+      }
     } catch {}
     setRerolling(false);
   }
@@ -145,14 +153,20 @@ function DailyCard({ difficulty }) {
     router.push(`/game?${p}`);
   }
 
-  const canReroll = data && !data.locked && !data.completed && data.rerolls_remaining > 0;
+  // Reroll blocked if game already started (progress in localStorage or DB)
+  const canReroll = data && !data.locked && !data.completed && data.rerolls_remaining > 0 && !dailyProgress;
 
   return (
     <div className="flex flex-col gap-2">
       {/* Section header with reroll and yesterday buttons */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("daily.title")}</span>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+            {t("daily.title")}
+            {!loading && data && !data.locked && !data.completed && (
+              <span className="normal-case tabular-nums"> · {countdown}</span>
+            )}
+          </span>
           {data?.streak > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-orange-400 tabular-nums">
               <Flame size={10} className="shrink-0" />
@@ -169,9 +183,9 @@ function DailyCard({ difficulty }) {
                 if (yesterday.cover) p.set("cover", yesterday.cover);
                 router.push(`/game?${p}`);
               }}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors flex items-center gap-1"
             >
-              {t("daily.yesterday")} →
+              ↩ {t("daily.yesterday")}
             </button>
           )}
           {!loading && canReroll && (
@@ -182,6 +196,11 @@ function DailyCard({ difficulty }) {
             >
               ↻ {data.rerolls_remaining} {t("daily.reroll")}
             </button>
+          )}
+          {!loading && data && !data.locked && !data.completed && data.rerolls_remaining > 0 && dailyProgress && (
+            <span className="text-[10px] border border-border px-2 py-0.5 opacity-30 cursor-not-allowed select-none flex items-center gap-1">
+              ↻ {data.rerolls_remaining} {t("daily.reroll")}
+            </span>
           )}
         </div>
       </div>
