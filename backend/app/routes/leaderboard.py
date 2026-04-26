@@ -36,8 +36,7 @@ WITH best_per_song AS (
         LOWER(s.artist) AS artist,
         LOWER(s.title)  AS title,
         MAX(
-            (COALESCE(s.unique_correct, s.score_correct)::numeric /
-             COALESCE(NULLIF(s.unique_total, 0), s.score_total)::numeric * 100.0) *
+            COALESCE(s.unique_correct, s.score_correct) *
             CASE s.difficulty
                 WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
                 WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
@@ -167,8 +166,7 @@ async def get_user_profile(request, username: str):
             FROM (
                 SELECT user_id,
                        MAX(
-                           (COALESCE(unique_correct, score_correct)::numeric /
-                            COALESCE(NULLIF(unique_total, 0), score_total)::numeric * 100.0) *
+                           COALESCE(unique_correct, score_correct) *
                            CASE difficulty
                                WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
                                WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
@@ -205,8 +203,7 @@ async def get_user_profile(request, username: str):
         WITH best_per_song AS (
             SELECT s2.user_id,
                    MAX(
-                       (COALESCE(s2.unique_correct, s2.score_correct)::numeric /
-                        COALESCE(NULLIF(s2.unique_total, 0), s2.score_total)::numeric * 100.0) *
+                       COALESCE(s2.unique_correct, s2.score_correct) *
                        CASE s2.difficulty
                            WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
                            WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
@@ -240,7 +237,9 @@ async def get_user_profile(request, username: str):
     recent, by_diff, by_mode, fav_artist_rows, play_days_rows = await asyncio.gather(
         pool.fetch(
             """
-            SELECT artist, title, album, difficulty, mode, score_correct, score_total, played_at, cover, is_daily
+            SELECT artist, title, album, difficulty, mode,
+                   score_correct, score_total, unique_correct, unique_total,
+                   duration_seconds, played_at, cover, is_daily
             FROM game_sessions
             WHERE user_id = $1 AND score_total > 0
             ORDER BY played_at DESC LIMIT 10
@@ -333,16 +332,19 @@ async def get_user_profile(request, username: str):
         ],
         "recent": [
             {
-                "artist":        r["artist"],
-                "title":         r["title"],
-                "album":         r["album"],
-                "cover":         r["cover"] or "",
-                "difficulty":    r["difficulty"],
-                "mode":          r["mode"],
-                "score_correct": r["score_correct"],
-                "score_total":   r["score_total"],
-                "played_at":     r["played_at"].isoformat(),
-                "is_daily":      bool(r["is_daily"] or False),
+                "artist":           r["artist"],
+                "title":            r["title"],
+                "album":            r["album"],
+                "cover":            r["cover"] or "",
+                "difficulty":       r["difficulty"],
+                "mode":             r["mode"],
+                "score_correct":    r["score_correct"],
+                "score_total":      r["score_total"],
+                "unique_correct":   r["unique_correct"],
+                "unique_total":     r["unique_total"],
+                "duration_seconds": r["duration_seconds"],
+                "played_at":        r["played_at"].isoformat(),
+                "is_daily":         bool(r["is_daily"] or False),
             }
             for r in recent
         ],
