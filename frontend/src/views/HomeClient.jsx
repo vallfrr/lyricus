@@ -10,12 +10,47 @@ import { useI18n } from "@/contexts/I18nContext";
 import { useAudio } from "@/contexts/AudioContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { Flame } from "lucide-react";
+import { Flame, Volume2, VolumeX } from "lucide-react";
 import Footer from "@/components/Footer";
 import PreviewButton from "@/components/PreviewButton";
 
 function cleanArtist(name) {
   return name.split(/\s+(?:feat\.?|ft\.?|with)\s+/i)[0].trim();
+}
+
+function VolumeSlider() {
+  const { volume, setVolume } = useAudio();
+  const isMuted = volume === 0;
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <button
+        onClick={() => setVolume(isMuted ? 0.5 : 0)}
+        className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        title={isMuted ? "Unmute" : "Mute"}
+      >
+        {isMuted
+          ? <VolumeX size={11} strokeWidth={1.5} />
+          : <Volume2 size={11} strokeWidth={1.5} />
+        }
+      </button>
+      <input
+        type="range"
+        min={0} max={1} step={0.02}
+        value={volume}
+        onChange={(e) => setVolume(parseFloat(e.target.value))}
+        className={[
+          "w-14 cursor-pointer appearance-none bg-transparent",
+          "[&::-webkit-slider-runnable-track]:h-px [&::-webkit-slider-runnable-track]:bg-border",
+          "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:-mt-[3px]",
+          "[&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:h-1.5",
+          "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-muted-foreground/60",
+          "[&::-moz-range-track]:h-px [&::-moz-range-track]:bg-border",
+          "[&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:w-1.5 [&::-moz-range-thumb]:h-1.5",
+          "[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-muted-foreground/60",
+        ].join(" ")}
+      />
+    </div>
+  );
 }
 
 function SongRow({ song, selected, onSelect }) {
@@ -44,7 +79,7 @@ function SongRow({ song, selected, onSelect }) {
           {song.album ? ` · ${song.album}` : ""}
         </p>
       </div>
-      <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
         <PreviewButton url={song.preview} />
         <a href={lfm}  target="_blank" rel="noopener noreferrer" className="text-[10px] px-1.5 py-0.5 border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors">lfm</a>
         <a href={spfy} target="_blank" rel="noopener noreferrer" className="text-[10px] px-1.5 py-0.5 border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors">spfy</a>
@@ -158,18 +193,10 @@ function DailyCard({ difficulty }) {
     if (song.album) p.set("album", song.album);
     if (song.cover) p.set("cover", song.cover);
     if (song.seed != null) p.set("seed", String(song.seed));
-    // If we have stored found IDs from an abandon session for this song, pass them
-    try {
-      const today = new Date().toISOString().split("T")[0];
-      const raw = localStorage.getItem(`lyricusDailyFoundIds_${today}`);
-      if (raw) {
-        const saved = JSON.parse(raw);
-        if (saved.artist === song.artist && saved.title === song.title) {
-          // Always pass found_ids (empty string = 0 words found → all shown red)
-          p.set("found_ids", (saved.found_ids ?? []).join(","));
-        }
-      }
-    } catch {}
+    // Use found_ids from backend if available (completed or abandoned)
+    if (song.found_ids !== null && song.found_ids !== undefined) {
+      p.set("found_ids", song.found_ids.join(","));
+    }
     router.push(`/game?${p}`);
   }
 
@@ -317,19 +344,24 @@ function DailyCard({ difficulty }) {
   );
 }
 
-const PLAYLIST_CACHE_KEY = "lyricusPlaylistCache";
+const PLAYLIST_POOL_KEY = "lyricusPlaylistPool";
 
-function getPlaylistCache() {
+const POOL_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — Deezer hdnea tokens expire after ~2h
+
+function getPool(fingerprint) {
   try {
-    const raw = sessionStorage.getItem(PLAYLIST_CACHE_KEY);
+    const raw = sessionStorage.getItem(PLAYLIST_POOL_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const saved = JSON.parse(raw);
+    if (saved.fingerprint !== fingerprint) return null;
+    if (!saved.savedAt || Date.now() - saved.savedAt > POOL_MAX_AGE_MS) return null;
+    return saved.pool;
   } catch { return null; }
 }
 
-function setPlaylistCache(playlistIds, tracks) {
+function savePool(fingerprint, pool) {
   try {
-    sessionStorage.setItem(PLAYLIST_CACHE_KEY, JSON.stringify({ playlistIds, tracks }));
+    sessionStorage.setItem(PLAYLIST_POOL_KEY, JSON.stringify({ fingerprint, pool, savedAt: Date.now() }));
   } catch {}
 }
 
@@ -341,10 +373,16 @@ export default function HomeClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
-  const { stop } = useAudio();
+  const { stop, playing, toggle } = useAudio();
   const { user } = useAuth();
   const [difficulty, setDifficulty] = useState("medium");
   const [selectedSong, setSelectedSong] = useState(null);
+
+  // Auto-switch preview when a new song is selected while one is already playing
+  useEffect(() => {
+    if (playing && selectedSong?.preview) toggle(selectedSong.preview);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSong]);
 
   // Pre-select song from URL params (e.g. from artist page or history)
   useEffect(() => {
@@ -384,27 +422,32 @@ export default function HomeClient() {
     setPlaylistError(null);
 
     const fingerprint = playlistFingerprint(userPlaylists);
-    const cached = getPlaylistCache();
+    const pool = getPool(fingerprint);
 
-    // Use cache if fingerprint matches and we have tracks
-    if (cached && cached.playlistIds === fingerprint && cached.tracks?.length) {
-      const idx = Math.floor(Math.random() * cached.tracks.length);
-      const song = cached.tracks[idx];
+    // Still have unplayed tracks in the pool → pick one without replacement
+    if (pool && pool.length > 0) {
+      const idx = Math.floor(Math.random() * pool.length);
+      const song = pool[idx];
+      pool.splice(idx, 1);
+      savePool(fingerprint, pool);
       setSelectedSong(song);
       setSuggestedSongs([]);
       setError(null);
       return;
     }
 
-    // Fetch from API and cache
+    // Pool empty or first time → fetch a fresh batch from the API
     setLoadingPlaylist(true);
     try {
       const res = await fetch("/api/playlists/tracks", { credentials: "include" });
       if (!res.ok) throw new Error();
       const tracks = await res.json();
       if (!tracks.length) throw new Error(t("home.playlist.error"));
-      setPlaylistCache(fingerprint, tracks);
-      const song = tracks[Math.floor(Math.random() * tracks.length)];
+      // Pick one immediately, store the rest as the new pool (no replacement)
+      const idx = Math.floor(Math.random() * tracks.length);
+      const song = tracks[idx];
+      tracks.splice(idx, 1);
+      savePool(fingerprint, tracks);
       setSelectedSong(song);
       setSuggestedSongs([]);
       setError(null);
@@ -511,11 +554,17 @@ export default function HomeClient() {
         )}
 
         {selectedSong && suggestedSongs.length === 0 && (
-          <Section label={t("home.selected.label")}>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                {t("home.selected.label")}
+              </span>
+              <VolumeSlider />
+            </div>
             <div className="border border-border">
               <SongRow song={selectedSong} selected onSelect={() => {}} />
             </div>
-          </Section>
+          </div>
         )}
 
         <DifficultySelector difficulty={difficulty} onDifficulty={setDifficulty} />

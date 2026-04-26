@@ -235,7 +235,8 @@ async def me(request):
         "email":       row["email"],
         "name":        row["name"],
         "needs_setup": not row["username_set"],
-        "public_history": row.get("public_history", True),
+        "public_history":  row.get("public_history", True),
+        "preview_volume":  float(row["preview_volume"]) if row.get("preview_volume") is not None else 0.5,
         "providers": {
             "email":    row.get("password_hash") is not None,
             "google":   row.get("google_id") is not None,
@@ -258,6 +259,12 @@ async def update_me(request):
     if "public_history" in body:
         ph = bool(body["public_history"])
         await pool.execute("UPDATE users SET public_history = $1 WHERE id = $2", ph, payload["sub"])
+        return json({"ok": True})
+
+    if "preview_volume" in body:
+        v = float(body["preview_volume"])
+        v = max(0.0, min(1.0, v))
+        await pool.execute("UPDATE users SET preview_volume = $1 WHERE id = $2", v, payload["sub"])
         return json({"ok": True})
 
     name = body.get("name", "").strip()

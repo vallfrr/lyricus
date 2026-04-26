@@ -6,25 +6,25 @@ import os
 import time
 import json as _json
 
-TTL = 3600  # 1 hour
+TTL = 3600  # 1 hour default
 
 # ── In-memory fallback ────────────────────────────────────────────────────────
-_mem: dict[str, tuple[object, float]] = {}
+_mem: dict[str, tuple[object, float, int]] = {}  # key → (value, stored_at, ttl)
 
 
 def _mem_get(key: str):
     entry = _mem.get(key)
     if entry is None:
         return None
-    value, ts = entry
-    if time.time() - ts > TTL:
+    value, ts, ttl = entry
+    if time.time() - ts > ttl:
         del _mem[key]
         return None
     return value
 
 
-def _mem_set(key: str, value):
-    _mem[key] = (value, time.time())
+def _mem_set(key: str, value, ttl: int = TTL):
+    _mem[key] = (value, time.time(), ttl)
 
 
 # ── Redis client (lazy init) ──────────────────────────────────────────────────
@@ -60,12 +60,12 @@ def get(key: str):
     return _mem_get(key)
 
 
-def set(key: str, value):
+def set(key: str, value, ttl: int = TTL):
     r = _get_redis()
     if r is not None:
         try:
-            r.setex(key, TTL, _json.dumps(value, default=str))
+            r.setex(key, ttl, _json.dumps(value, default=str))
             return
         except Exception:
             pass
-    _mem_set(key, value)
+    _mem_set(key, value, ttl)
