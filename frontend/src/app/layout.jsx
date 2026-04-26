@@ -9,6 +9,12 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-visual",
+};
+
 export const metadata = {
   metadataBase: new URL("https://lyricus.vallfrr.ovh"),
   title: { default: "lyricus", template: "%s · lyricus" },

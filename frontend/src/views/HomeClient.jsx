@@ -206,43 +206,44 @@ function DailyCard({ difficulty }) {
   return (
     <div className="flex flex-col gap-2">
       {/* Section header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+      {/* Countdown — mobile only, shown above the header row */}
+      {!loading && data && !data.locked && (
+        <span className="block sm:hidden text-[10px] text-muted-foreground tabular-nums -mb-1">
+          {countdown}
+        </span>
+      )}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-widest whitespace-nowrap">
             {t("daily.title")}
             {!loading && data && !data.locked && (
-              <span className="normal-case tabular-nums"> · {countdown}</span>
+              <span className="hidden sm:inline normal-case tabular-nums"> · {countdown}</span>
             )}
           </span>
           {data?.streak > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-orange-400 tabular-nums">
+            <span className="flex items-center gap-0.5 text-[10px] text-orange-400 tabular-nums shrink-0">
               <Flame size={10} className="shrink-0" />
               {data.streak}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {!loading && yesterday && (
             <button
               onClick={() => handleShowCorrection(yesterday)}
-              className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors whitespace-nowrap"
             >
-              ↩ {t("daily.yesterday")}
+              {t("daily.yesterday")}
             </button>
           )}
-          {!loading && canReroll && (
+          {!loading && isActive && (
             <button
               onClick={handleReroll}
-              disabled={rerolling}
-              className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors disabled:opacity-40 flex items-center gap-1"
+              disabled={!canReroll || rerolling}
+              className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:pointer-events-none whitespace-nowrap"
             >
               ↻ {data.rerolls_remaining} {t("daily.reroll")}
             </button>
-          )}
-          {!loading && isActive && data.rerolls_remaining > 0 && dailyProgress && (
-            <span className="text-[10px] border border-border px-2 py-0.5 opacity-30 cursor-not-allowed select-none flex items-center gap-1">
-              ↻ {data.rerolls_remaining} {t("daily.reroll")}
-            </span>
           )}
         </div>
       </div>

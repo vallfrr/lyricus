@@ -62,7 +62,7 @@ export default function NavBar() {
           <div className="relative">
             <button
               onClick={() => setLangOpen((o) => !o)}
-              className="text-[10px] px-1.5 py-0.5 border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors tabular-nums"
+              className="h-7 px-1.5 text-[10px] border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors tabular-nums flex items-center"
             >
               {LOCALE_META[locale]?.flag} {locale.toUpperCase()}
             </button>
@@ -99,7 +99,7 @@ export default function NavBar() {
                 {user.name || user.email}
               </Link>
             ) : (
-              <Link href="/login" className="border border-border px-2.5 py-1 hover:border-foreground transition-colors hidden sm:inline">
+              <Link href="/login" className="h-7 flex items-center border border-border px-2.5 text-xs hover:border-foreground transition-colors">
                 {t("nav.login")}
               </Link>
             )
@@ -132,25 +132,19 @@ export default function NavBar() {
               {t(l.key)}
             </Link>
           ))}
-          {!loading && (
-            user ? (
-              <>
-                <Link
-                  href={user.name ? `/u/${encodeURIComponent(user.name)}` : "/settings"}
-                  onClick={() => setOpen(false)}
-                  className="px-4 py-3 border-b border-border text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {user.name || user.email}
-                </Link>
-                <button onClick={() => { logout(); setOpen(false); }} className="px-4 py-3 text-left text-muted-foreground hover:text-foreground transition-colors">
-                  {t("nav.logout")}
-                </button>
-              </>
-            ) : (
-              <Link href="/login" onClick={() => setOpen(false)} className="px-4 py-3 text-muted-foreground hover:text-foreground transition-colors">
-                {t("nav.login")}
+          {!loading && user && (
+            <>
+              <Link
+                href={user.name ? `/u/${encodeURIComponent(user.name)}` : "/settings"}
+                onClick={() => setOpen(false)}
+                className="px-4 py-3 border-b border-border text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {user.name || user.email}
               </Link>
-            )
+              <button onClick={() => { logout(); setOpen(false); }} className="px-4 py-3 text-left text-muted-foreground hover:text-foreground transition-colors">
+                {t("nav.logout")}
+              </button>
+            </>
           )}
         </div>
       )}

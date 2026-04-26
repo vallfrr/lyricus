@@ -11,7 +11,7 @@ const PERIODS = [
   { id: "week", key: "lb.period.week" },
 ];
 
-const COLS = "grid-cols-[2rem_1fr_5.5rem_5rem_5rem_4rem]";
+const COLS = "grid-cols-[2rem_1fr_5.5rem_4rem] sm:grid-cols-[2rem_1fr_5.5rem_5rem_5rem_4rem]";
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -65,10 +65,10 @@ function Row({ row, youLabel, rowRef }) {
       <div className="px-2 py-2.5 text-xs tabular-nums font-semibold text-foreground">
         {row.total_points.toLocaleString()}
       </div>
-      <div className="px-2 py-2.5 text-xs tabular-nums text-muted-foreground">
+      <div className="hidden sm:block px-2 py-2.5 text-xs tabular-nums text-muted-foreground">
         {row.songs}
       </div>
-      <div className="px-2 py-2.5 text-xs tabular-nums text-muted-foreground">
+      <div className="hidden sm:block px-2 py-2.5 text-xs tabular-nums text-muted-foreground">
         {row.avg_points}
       </div>
       <div className="px-2 py-2.5 text-xs tabular-nums">
