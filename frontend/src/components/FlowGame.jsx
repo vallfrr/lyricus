@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { normalize, fuzzyMatch, transcriptWords } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/contexts/I18nContext";
+import { track } from "@/lib/analytics";
 
 const SpeechRecognition =
   typeof window !== "undefined"
@@ -206,7 +207,7 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
   }
 
   function toggleInputMode() {
-    if (inputMode === "type") { setInputMode("voice"); startListening(); }
+    if (inputMode === "type") { setInputMode("voice"); startListening(); track("voice_used"); }
     else { setInputMode("type"); stopListening(); }
   }
 

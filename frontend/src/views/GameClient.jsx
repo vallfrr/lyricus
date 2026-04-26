@@ -8,6 +8,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { LyricsSkeleton } from "@/components/Skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
+import { track } from "@/lib/analytics";
 
 const LyricsGame = dynamic(() => import("@/components/LyricsGame"), { ssr: false });
 const FlowGame   = dynamic(() => import("@/components/FlowGame"),   { ssr: false });
@@ -339,6 +340,9 @@ export default function GameClient() {
     setFinished(true);
     setScore(data?.score ?? null);
     clearProgress(artist, title, difficulty, mode);
+    const pct = data?.score?.total > 0
+      ? Math.round(data.score.correct * 100 / data.score.total) : 0;
+    track("game_finished", { difficulty, mode, score_pct: pct, duration: timer.seconds, is_daily: isDaily });
     if (!user) return;
     const payload = {
       artist: gameData?.song?.artist ?? artist,
@@ -410,6 +414,7 @@ export default function GameClient() {
   }
 
   async function handleAbandon() {
+    track("daily_abandoned", { difficulty });
     // Capture found IDs before clearing progress
     const revealedIds = latestDataRef.current?.revealed_ids ?? [];
     try {
@@ -615,7 +620,7 @@ export default function GameClient() {
             tokens={initialProgress?.tokens ?? gameData.tokens}
             answers={initialProgress?.answers ?? gameData.answers}
             onReveal={handleReveal}
-            onFirstMatch={timer.start}
+            onFirstMatch={() => { timer.start(); track("game_started", { difficulty, mode, is_daily: isDaily }); }}
             onProgress={handleProgress}
             initialRevealed={
               revealAll
