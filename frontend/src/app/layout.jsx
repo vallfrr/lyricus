@@ -20,8 +20,8 @@ export const metadata = {
   title: { default: "lyricus", template: "%s · lyricus" },
   description: "Testez vos connaissances sur les paroles de vos chansons préférées. Complétez les paroles manquantes en mode normal, flow ou reconnaissance vocale.",
   keywords: ["paroles", "musique", "quiz", "lyrics", "jeu", "chanson", "karaoké", "test"],
-  authors: [{ name: "v4l3nt1", url: "https://github.com/v4l3nt1" }],
-  creator: "v4l3nt1",
+  authors: [{ name: "vallfrr", url: "https://github.com/vallfrr" }],
+  creator: "vallfrr",
   openGraph: {
     type: "website",
     locale: "fr_FR",
@@ -61,7 +61,7 @@ export default function RootLayout({ children }) {
               applicationCategory: "GameApplication",
               operatingSystem: "Any",
               inLanguage: "fr",
-              author: { "@type": "Person", name: "v4l3nt1", url: "https://github.com/v4l3nt1" },
+              author: { "@type": "Person", name: "vallfrr", url: "https://github.com/vallfrr" },
               offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
             }),
           }}
