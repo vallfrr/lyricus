@@ -4,7 +4,7 @@ import GameClient from "@/views/GameClient";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "jeu — lyricus",
+  title: "jeu",
   description: "Complétez les paroles manquantes de la chanson.",
   robots: { index: false },
 };

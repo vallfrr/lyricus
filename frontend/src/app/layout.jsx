@@ -19,7 +19,7 @@ export const viewport = {
 export const metadata = {
   metadataBase: new URL("https://lyricus.vallfrr.ovh"),
   title: { default: "lyricus", template: "%s · lyricus" },
-  description: "Testez vos connaissances sur les paroles de vos chansons préférées. Complétez les paroles manquantes en mode normal, flow ou reconnaissance vocale.",
+  description: "Testez vos connaissances sur les paroles de vos chansons préférées. Choisissez une chanson, sélectionnez la difficulté et complétez les paroles",
   keywords: ["paroles", "musique", "quiz", "lyrics", "jeu", "chanson", "karaoké", "test"],
   authors: [{ name: "vallfrr", url: "https://github.com/vallfrr" }],
   creator: "vallfrr",
@@ -28,12 +28,12 @@ export const metadata = {
     locale: "fr_FR",
     url: "https://lyricus.vallfrr.ovh",
     siteName: "lyricus",
-    title: "lyricus — complète les paroles",
+    title: "lyricus",
     description: "Testez vos connaissances sur les paroles de vos chansons préférées.",
   },
   twitter: {
     card: "summary",
-    title: "lyricus — complète les paroles",
+    title: "lyricus",
     description: "Testez vos connaissances sur les paroles de vos chansons préférées.",
   },
   robots: { index: true, follow: true },
