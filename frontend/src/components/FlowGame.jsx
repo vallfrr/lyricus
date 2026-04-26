@@ -119,6 +119,8 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
       revealedRef.current = newRevealed;
       setRevealed(newRevealed);
       setInput("");
+      // Re-focus after clearing so the keyboard stays open on Android
+      setTimeout(() => inputRef.current?.focus(), 0);
       triggerFlash();
       notifyFirstMatch();
       autoFinishIfComplete(newRevealed);
@@ -221,7 +223,7 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
 
   return (
     <div className={`flex flex-col gap-6 ${finished ? "pb-4" : "pb-24"}`}>
-      <div className="text-base leading-[3] break-words">
+      <div className="text-base leading-[3] break-words" aria-hidden="true">
         {tokens.map((token, i) => {
           if (token.type === "newline") return <br key={i} />;
           if (token.type === "space") return <span key={i}> </span>;
@@ -267,10 +269,12 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
       </div>
 
       {!finished ? (
-        <div className={cn(
-          "fixed bottom-0 left-0 right-0 border-t bg-background p-3 transition-colors",
-          flash ? "border-foreground" : "border-border"
-        )}>
+        <div
+          className={cn(
+            "fixed bottom-0 left-0 right-0 border-t bg-background p-3 transition-colors",
+            flash ? "border-foreground" : "border-border"
+          )}
+        >
           <div className="max-w-2xl mx-auto flex items-center gap-2">
             <span className="text-xs text-muted-foreground shrink-0 tabular-nums text-right">
               {revealed.size}/{totalBlanks}
@@ -284,7 +288,11 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
                 spellCheck={false}
                 autoCapitalize="none"
                 autoCorrect="off"
-                autoComplete="off"
+                autoComplete="new-password"
+                data-form-type="other"
+                data-gramm="false"
+                enterKeyHint="go"
+                aria-label="Saisie de mot"
                 className="flex-1"
               />
             ) : (

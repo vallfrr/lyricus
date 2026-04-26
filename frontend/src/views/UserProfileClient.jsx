@@ -309,7 +309,7 @@ export default function UserProfileClient() {
                           if (g.cover) p.set("cover", g.cover);
                           router.push(`/?${p}`);
                         }}
-                        className="grid grid-cols-[auto_1fr_6rem_3.5rem_5rem_5rem] items-center border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
+                        className="grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_1fr_6rem_3.5rem_5rem_5rem] items-center border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
                       >
                         <div className="p-2 shrink-0">
                           {g.cover
@@ -325,13 +325,13 @@ export default function UserProfileClient() {
                             onClick={(e) => e.stopPropagation()}
                           >{g.artist}</Link>
                         </div>
-                        <div className={cn("px-2 py-2.5 text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
+                        <div className={cn("hidden sm:block px-2 py-2.5 text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
                           {DIFF_LABELS[g.difficulty] ?? g.difficulty}
                           {g.is_daily && <span className="ml-1 text-[9px] text-muted-foreground/60 uppercase">·{t("history.daily")}</span>}
                         </div>
-                        <div className="px-2 py-2.5 text-xs tabular-nums font-medium">{pct}%</div>
+                        <div className={cn("px-2 py-2.5 text-xs tabular-nums font-medium sm:text-foreground", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>{pct}%</div>
                         <div className="px-2 py-2.5 text-xs tabular-nums text-muted-foreground">{date}</div>
-                        <div className="px-2 py-2.5 text-xs tabular-nums text-muted-foreground">{fmtDur(g.duration_seconds)}</div>
+                        <div className="hidden sm:block px-2 py-2.5 text-xs tabular-nums text-muted-foreground">{fmtDur(g.duration_seconds)}</div>
                       </div>
                     );
                   })}

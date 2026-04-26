@@ -213,7 +213,7 @@ export default function HistoryClient() {
                 return (
                   <div
                     key={g.id}
-                    className="group grid grid-cols-[auto_1fr_6rem_3.5rem_5rem_2rem] items-center border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
+                    className="group grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_1fr_6rem_3.5rem_5rem] items-center border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
                     onClick={() => {
                       if (isConfirming) return;
                       const p = new URLSearchParams({ artist: g.artist, title: g.title });
@@ -242,39 +242,52 @@ export default function HistoryClient() {
                         {g.is_daily && <span className="ml-1 text-[9px] opacity-50 uppercase">·{t("history.daily")}</span>}
                       </p>
                     </div>
-                    {/* Difficulty */}
-                    <div className={cn("px-2 py-2.5 text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
-                      {isConfirming ? "" : (DIFF_LABELS[g.difficulty] ?? g.difficulty)}
-                    </div>
-                    {/* Score % */}
-                    <div className="px-2 py-2.5 text-xs tabular-nums font-medium">
-                      {isConfirming ? (
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t("history.delete.confirm")}</span>
-                          <button
-                            onClick={() => handleDeleteHistory(g.id)}
-                            className="text-[10px] border border-border px-1 py-0.5 text-muted-foreground hover:border-green-500 hover:text-green-500 transition-colors"
-                          >✓</button>
+                    {isConfirming ? (
+                      /* Confirmation spans all right columns */
+                      <div
+                        className="flex items-center justify-end gap-1 pr-3"
+                        style={{ gridColumn: "3 / -1" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap mr-1">{t("history.delete.confirm")}</span>
+                        <button
+                          onClick={() => handleDeleteHistory(g.id)}
+                          className="w-6 h-6 flex items-center justify-center text-[11px] text-muted-foreground hover:text-green-500 transition-colors"
+                        >✓</button>
+                        <button
+                          onClick={() => setConfirmDelete(null)}
+                          className="w-6 h-6 flex items-center justify-center text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                        >✕</button>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Difficulty — hidden on mobile */}
+                        <div className={cn("hidden sm:block px-2 py-2.5 text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
+                          {DIFF_LABELS[g.difficulty] ?? g.difficulty}
                         </div>
-                      ) : `${pct}%`}
-                    </div>
-                    {/* Duration */}
-                    <div className="px-2 py-2.5 text-xs tabular-nums text-muted-foreground">
-                      {isConfirming ? "" : fmtDur(g.duration_seconds)}
-                    </div>
-                    {/* Delete / cancel */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmDelete(isConfirming ? null : g.id);
-                      }}
-                      className={cn(
-                        "self-stretch flex items-center justify-center text-[11px] border-l border-border transition-colors",
-                        isConfirming
-                          ? "text-muted-foreground hover:text-foreground"
-                          : "text-transparent group-hover:text-muted-foreground hover:text-foreground"
-                      )}
-                    >✕</button>
+                        {/* Score % */}
+                        <div className={cn(
+                          "pl-2 py-2.5 text-xs tabular-nums font-medium",
+                          "sm:text-foreground",
+                          DIFF_COLOR[g.difficulty] ?? "text-muted-foreground"
+                        )}>
+                          {`${pct}%`}
+                        </div>
+                        {/* Duration / Delete */}
+                        <div
+                          className="pl-2 pr-3 py-2.5 flex items-center justify-end gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span className="hidden sm:block sm:group-hover:hidden text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+                            {fmtDur(g.duration_seconds)}
+                          </span>
+                          <button
+                            onClick={() => setConfirmDelete(g.id)}
+                            className="flex sm:hidden sm:group-hover:flex w-6 h-6 items-center justify-center text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                          >✕</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}

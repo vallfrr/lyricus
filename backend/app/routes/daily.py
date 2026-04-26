@@ -471,7 +471,8 @@ async def reroll_daily(request):
         new_seed,
         user_id, today,
     )
-    return json(_row_to_dict(updated, ttl, challenge.get("preview", "")))
+    streak, longest = await _get_streak(pool, user_id)
+    return json(_row_to_dict(updated, ttl, challenge.get("preview", ""), streak, longest))
 
 
 @daily_bp.post("/daily/abandon")

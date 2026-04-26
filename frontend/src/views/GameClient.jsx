@@ -463,9 +463,29 @@ export default function GameClient() {
   const theirPct = isChallenge ? Number(challengeScore) : null;
   const challengeWon = myPct !== null && theirPct !== null && myPct >= theirPct;
 
+  const gameContainerRef = useRef(null);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    const update = () => {
+      const el = gameContainerRef.current;
+      if (!el) return;
+      el.style.height = vv.height + "px";
+      el.style.top = vv.offsetTop + "px";
+    };
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+  }, []);
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-10 border-b border-border bg-background h-10 px-4 flex items-center gap-3">
+    <div
+      ref={gameContainerRef}
+      className="flex flex-col overflow-hidden"
+      style={{ position: "fixed", left: 0, right: 0, top: 0, height: "100svh", transform: "translate(0,0)" }}
+    >
+      <header className="shrink-0 z-10 border-b border-border bg-background h-10 px-4 flex items-center gap-3">
         <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">
           {t("game.back")}
         </Link>
@@ -483,7 +503,7 @@ export default function GameClient() {
         <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
           <ThemeToggle />
           <TimerDisplay display={timer.display} running={timer.running} />
-          <span className="border border-border px-1.5 py-0.5">{DIFF_LABELS[difficulty] ?? difficulty}</span>
+          <span className="border border-border px-1.5 py-0.5 hidden sm:inline">{DIFF_LABELS[difficulty] ?? difficulty}</span>
         </div>
         {cover && <img src={cover} alt="cover" width={28} height={28} className="w-7 h-7 object-cover border border-border shrink-0" />}
       </header>
@@ -557,7 +577,7 @@ export default function GameClient() {
         </div>
       )}
 
-      <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
+      <main className="flex-1 overflow-y-auto max-w-2xl mx-auto w-full px-4 py-8">
         {loading && <LyricsSkeleton />}
 
         {error && (
