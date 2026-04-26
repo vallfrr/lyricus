@@ -13,8 +13,8 @@ export default function Footer() {
       </span>
       <span>
         {t("footer.by")}{" "}
-        <a href="https://github.com/v4l3nt1" target="_blank" rel="noopener noreferrer" className="text-foreground hover:underline">
-          v4l3nt1
+        <a href="https://github.com/vallfrr/lyricus" target="_blank" rel="noopener noreferrer" className="text-foreground hover:underline">
+          vallfrr
         </a>
       </span>
     </footer>
