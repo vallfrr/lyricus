@@ -114,6 +114,8 @@ export default function GameClient() {
   const [newBadges, setNewBadges] = useState([]);
   const [pointsGained, setPointsGained] = useState(0);
   const [abandonConfirm, setAbandonConfirm] = useState(false);
+  const [leaveConfirm, setLeaveConfirm] = useState(false);
+  const pendingPayloadRef = useRef(null);
   const [savedProgress, setSavedProgress] = useState(null);
   const [resumeDecided, setResumeDecided] = useState(false);
   const [initialProgress, setInitialProgress] = useState(null);
@@ -343,7 +345,6 @@ export default function GameClient() {
     const pct = data?.score?.total > 0
       ? Math.round(data.score.correct * 100 / data.score.total) : 0;
     track("game_finished", { difficulty, mode, score_pct: pct, duration: timer.seconds, is_daily: isDaily });
-    if (!user) return;
     const payload = {
       artist: gameData?.song?.artist ?? artist,
       title: gameData?.song?.title ?? title,
@@ -357,6 +358,7 @@ export default function GameClient() {
       duration_seconds: timer.seconds,
       details: data?.details ? JSON.stringify(data.details) : null,
     };
+    if (!user) { pendingPayloadRef.current = payload; return; }
     // If we already have an unfinished DB session, patch it; otherwise create a finished session
     let gained = 0;
     if (dbSessionId) {
@@ -432,6 +434,13 @@ export default function GameClient() {
         router.push("/");
       }
     } catch {}
+  }
+
+  function handleSaveAndLogin() {
+    if (pendingPayloadRef.current) {
+      try { localStorage.setItem("lyricusPendingGame", JSON.stringify(pendingPayloadRef.current)); } catch {}
+    }
+    router.push("/login");
   }
 
   async function handleCopyChallenge() {
@@ -512,9 +521,15 @@ export default function GameClient() {
   return (
     <div ref={gameContainerRef} className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-background h-10 px-4 flex items-center gap-3">
-        <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">
-          {t("game.back")}
-        </Link>
+        {finished && !user && !revealAll ? (
+          <button onClick={() => setLeaveConfirm(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">
+            {t("game.back")}
+          </button>
+        ) : (
+          <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">
+            {t("game.back")}
+          </Link>
+        )}
         <div className="flex-1 min-w-0 flex items-baseline gap-2">
           {gameData && (
             <>
@@ -597,6 +612,35 @@ export default function GameClient() {
                 className="border border-red-500/40 text-red-500 px-4 py-1.5 text-xs hover:bg-red-500/10 transition-colors"
               >
                 {t("daily.abandon")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave confirmation modal (for non-logged-in users who finished a game) */}
+      {leaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={() => setLeaveConfirm(false)}>
+          <div
+            className="border border-border bg-background p-6 flex flex-col gap-4 max-w-xs w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm font-medium">{t("game.leave.title")}</p>
+              <p className="text-xs text-muted-foreground">{t("game.leave.desc")}</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleSaveAndLogin}
+                className="border border-foreground px-4 py-2 text-xs font-medium hover:bg-foreground hover:text-background transition-colors"
+              >
+                {t("game.leave.save")}
+              </button>
+              <button
+                onClick={() => router.push("/")}
+                className="border border-border px-4 py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+              >
+                {t("game.leave.quit")}
               </button>
             </div>
           </div>
@@ -696,9 +740,18 @@ export default function GameClient() {
               )}
             </div>
 
+            {!user && !revealAll && (
+              <button
+                onClick={handleSaveAndLogin}
+                className="w-full max-w-xs border border-foreground px-4 py-2.5 text-sm font-medium text-center hover:bg-foreground hover:text-background transition-colors"
+              >
+                {t("game.save_progress")}
+              </button>
+            )}
+
             <Link
               href="/"
-              className="w-full max-w-xs border border-foreground px-4 py-2.5 text-sm font-medium text-center hover:bg-foreground hover:text-background transition-colors"
+              className={`w-full max-w-xs border px-4 py-2.5 text-sm font-medium text-center transition-colors ${!user && !revealAll ? "border-border text-muted-foreground hover:border-foreground hover:text-foreground" : "border-foreground hover:bg-foreground hover:text-background"}`}
             >
               {t("game.new")}
             </Link>

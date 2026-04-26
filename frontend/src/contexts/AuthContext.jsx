@@ -18,6 +18,22 @@ export function AuthProvider({ children }) {
       .catch(() => setUser(null));
   }, []);
 
+  // After login: flush any pending game saved before the user was authenticated
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const raw = localStorage.getItem("lyricusPendingGame");
+      if (!raw) return;
+      localStorage.removeItem("lyricusPendingGame");
+      fetch("/api/history/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: raw,
+      }).catch(() => {});
+    } catch {}
+  }, [user?.id]);
+
   // Redirect to /setup if username not set
   useEffect(() => {
     if (user?.needs_setup && !SETUP_EXEMPT.includes(pathname)) {
