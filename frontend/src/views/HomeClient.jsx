@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Flame, Volume2, VolumeX } from "lucide-react";
 import Footer from "@/components/Footer";
 import PreviewButton from "@/components/PreviewButton";
+import { track } from "@/lib/analytics";
 
 function cleanArtist(name) {
   return name.split(/\s+(?:feat\.?|ft\.?|with)\s+/i)[0].trim();
@@ -164,6 +165,7 @@ function DailyCard({ difficulty }) {
   async function handleReroll() {
     if (rerolling || !data || data.rerolls_remaining <= 0 || data.completed || data.abandoned || dailyProgress) return;
     setRerolling(true);
+    track("daily_reroll");
     try {
       const r = await fetch("/api/daily/reroll", { method: "POST", credentials: "include" });
       if (r.ok) {

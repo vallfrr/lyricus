@@ -1,4 +1,5 @@
 import { JetBrains_Mono } from "next/font/google";
+import Script from "next/script";
 import Providers from "./providers";
 import "../index.css";
 
@@ -69,6 +70,12 @@ export default function RootLayout({ children }) {
       </head>
       <body className={`${mono.variable} font-mono bg-background text-foreground antialiased`}>
         <Providers>{children}</Providers>
+        <Script
+          src="/stats/script.js"
+          data-website-id="e9e1c695-fead-4bbf-9de9-3f167a14f445"
+          data-host-url="/stats"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );

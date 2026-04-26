@@ -64,6 +64,50 @@ services:
     networks:
       - app
 
+  # ── Analytics ────────────────────────────────────────────────────────────
+  umami-db:
+    image: postgres:15-alpine
+    container_name: lyricus-umami-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: umami
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD}
+    volumes:
+      - umami_db_data:/var/lib/postgresql/data
+    networks:
+      - analytics
+
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: lyricus-umami
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD}@umami-db:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET}
+    depends_on:
+      - umami-db
+    ports:
+      - "3009:3000"
+    networks:
+      - analytics
+      - web_network
+
+  # ── Business Intelligence ─────────────────────────────────────────────────
+  metabase:
+    image: metabase/metabase:latest
+    container_name: lyricus-metabase
+    restart: unless-stopped
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+    volumes:
+      - metabase_data:/metabase-data
+    ports:
+      - "3002:3000"
+    networks:
+      - app
+      - web_network
+
   frontend:
     build: ./frontend
     container_name: lyricus-frontend
@@ -71,6 +115,7 @@ services:
     environment:
       PORT: "80"
       BACKEND_URL: http://backend:8000
+      UMAMI_URL: http://umami:3000
     ports:
       - "3000:80"
     depends_on:
@@ -83,9 +128,13 @@ volumes:
   postgres_data:
     external: true
     name: lyrics-quiz_postgres_data
+  umami_db_data:
+  metabase_data:
 
 networks:
   app:
+    driver: bridge
+  analytics:
     driver: bridge
   web_network:
     external: true

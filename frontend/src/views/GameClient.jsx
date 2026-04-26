@@ -8,6 +8,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { LyricsSkeleton } from "@/components/Skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
+import { track } from "@/lib/analytics";
 
 const LyricsGame = dynamic(() => import("@/components/LyricsGame"), { ssr: false });
 const FlowGame   = dynamic(() => import("@/components/FlowGame"),   { ssr: false });
@@ -339,6 +340,9 @@ export default function GameClient() {
     setFinished(true);
     setScore(data?.score ?? null);
     clearProgress(artist, title, difficulty, mode);
+    const pct = data?.score?.total > 0
+      ? Math.round(data.score.correct * 100 / data.score.total) : 0;
+    track("game_finished", { difficulty, mode, score_pct: pct, duration: timer.seconds, is_daily: isDaily });
     if (!user) return;
     const payload = {
       artist: gameData?.song?.artist ?? artist,
@@ -410,6 +414,7 @@ export default function GameClient() {
   }
 
   async function handleAbandon() {
+    track("daily_abandoned", { difficulty });
     // Capture found IDs before clearing progress
     const revealedIds = latestDataRef.current?.revealed_ids ?? [];
     try {
@@ -467,25 +472,46 @@ export default function GameClient() {
   useEffect(() => {
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     if (!vv) return;
+    const mq = window.matchMedia("(max-width: 639px)");
     const update = () => {
       const el = gameContainerRef.current;
       if (!el) return;
-      el.style.height = vv.height + "px";
-      el.style.top = vv.offsetTop + "px";
+      if (mq.matches) {
+        // Mobile: pin container to visual viewport so input bar stays above keyboard
+        el.style.position = "fixed";
+        el.style.left = "0";
+        el.style.right = "0";
+        el.style.top = vv.offsetTop + "px";
+        el.style.height = vv.height + "px";
+        el.style.minHeight = "0"; // override min-h-screen so JS height wins
+        el.style.transform = "translate(0,0)";
+        el.style.overflow = "hidden";
+      } else {
+        // Desktop: normal page scroll
+        el.style.position = "";
+        el.style.left = "";
+        el.style.right = "";
+        el.style.top = "";
+        el.style.height = "";
+        el.style.minHeight = "";
+        el.style.transform = "";
+        el.style.overflow = "";
+      }
     };
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
+    mq.addEventListener("change", update);
     update();
-    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+      mq.removeEventListener("change", update);
+    };
   }, []);
 
   return (
-    <div
-      ref={gameContainerRef}
-      className="flex flex-col overflow-hidden"
-      style={{ position: "fixed", left: 0, right: 0, top: 0, height: "100svh", transform: "translate(0,0)" }}
-    >
-      <header className="shrink-0 z-10 border-b border-border bg-background h-10 px-4 flex items-center gap-3">
+    <div ref={gameContainerRef} className="min-h-screen flex flex-col">
+      <header className="sticky top-0 z-10 border-b border-border bg-background h-10 px-4 flex items-center gap-3">
         <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">
           {t("game.back")}
         </Link>
@@ -577,7 +603,7 @@ export default function GameClient() {
         </div>
       )}
 
-      <main className="flex-1 overflow-y-auto max-w-2xl mx-auto w-full px-4 py-8">
+      <main className="flex-1 overflow-y-auto sm:overflow-y-visible max-w-2xl mx-auto w-full px-4 py-8">
         {loading && <LyricsSkeleton />}
 
         {error && (
@@ -594,7 +620,7 @@ export default function GameClient() {
             tokens={initialProgress?.tokens ?? gameData.tokens}
             answers={initialProgress?.answers ?? gameData.answers}
             onReveal={handleReveal}
-            onFirstMatch={timer.start}
+            onFirstMatch={() => { timer.start(); track("game_started", { difficulty, mode, is_daily: isDaily }); }}
             onProgress={handleProgress}
             initialRevealed={
               revealAll
