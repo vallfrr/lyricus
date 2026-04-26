@@ -152,7 +152,7 @@ _DIFF_MULT = {"easy": 1.0, "medium": 1.5, "hard": 2.5, "extreme": 4.0}
 
 _POINTS_SQL = """
     SELECT COALESCE(MAX(
-        COALESCE(unique_correct, score_correct) *
+        COALESCE(NULLIF(unique_correct, 0), score_correct) *
         CASE difficulty
             WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
             WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
@@ -174,7 +174,7 @@ async def compute_points_gained(pool, user_id: str, artist: str, title: str,
     if score_total == 0:
         return 0, 0
     mult    = _DIFF_MULT.get(difficulty, 1.0)
-    count   = unique_correct if unique_correct is not None else score_correct
+    count   = unique_correct if (unique_correct is not None and unique_correct > 0) else score_correct
     new_pts = count * mult
     old_best = await pool.fetchval(_POINTS_SQL, user_id, artist.lower(), title.lower())
     gained   = max(0.0, new_pts - float(old_best or 0))

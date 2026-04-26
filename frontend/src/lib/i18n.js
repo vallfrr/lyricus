@@ -244,6 +244,11 @@ export const translations = {
     "history.daily": "défi",
     "history.delete.confirm": "vous êtes sûr ?",
     "game.correction": "correction du défi d'hier",
+    "game.save_progress": "sauvegarder ma progression",
+    "game.leave.title": "quitter sans sauvegarder ?",
+    "game.leave.desc": "ta partie ne sera pas sauvegardée. connecte-toi pour la conserver.",
+    "game.leave.save": "sauvegarder & se connecter",
+    "game.leave.quit": "quitter quand même",
     "loading": "chargement...",
   },
   en: {
@@ -477,6 +482,11 @@ export const translations = {
     "history.daily": "daily",
     "history.delete.confirm": "are you sure?",
     "game.correction": "yesterday's challenge correction",
+    "game.save_progress": "save my progress",
+    "game.leave.title": "leave without saving?",
+    "game.leave.desc": "your game won't be saved. log in to keep it.",
+    "game.leave.save": "save & log in",
+    "game.leave.quit": "leave anyway",
     "loading": "loading...",
   },
   es: {
