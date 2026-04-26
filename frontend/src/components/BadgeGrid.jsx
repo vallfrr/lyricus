@@ -1,13 +1,13 @@
 "use client";
 import {
-  Music, Flame, CalendarCheck, CalendarDays, CircleCheck, Zap, Gem, Target,
-  Mic, Headphones, Trophy, Star, Crown, Shield, Swords, Sun, Moon, Medal, Award,
+  Music, Music2, Flame, CalendarCheck, CalendarDays, CircleCheck, Zap, Gem, Target,
+  Mic, Headphones, Trophy, Star, Crown, Shield, Swords, Sun, Moon, Medal, Award, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const ICON_MAP = {
-  Music, Flame, CalendarCheck, CalendarDays, CircleCheck, Zap, Gem, Target,
-  Mic, Headphones, Trophy, Star, Crown, Shield, Swords, Sun, Moon, Medal, Award,
+  Music, Music2, Flame, CalendarCheck, CalendarDays, CircleCheck, Zap, Gem, Target,
+  Mic, Headphones, Trophy, Star, Crown, Shield, Swords, Sun, Moon, Medal, Award, Wand2,
 };
 
 export default function BadgeGrid({ badges }) {

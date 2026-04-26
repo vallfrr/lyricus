@@ -226,7 +226,7 @@ async def get_playlist_tracks(request):
         return json([])
 
     session = request.app.ctx.session
-    BATCH = 30  # tracks to fetch per playlist
+    BATCH = 100  # tracks to fetch per playlist
 
     async def fetch_for_playlist(pl):
         track_count = pl.get("track_count") or 0
@@ -253,15 +253,21 @@ async def get_playlist_tracks(request):
 
     random.shuffle(all_tracks)
 
-    # Enrich Spotify tracks (no preview/cover from API) with Deezer in parallel
+    # Enrich tracks missing preview/cover with Deezer — limit concurrency to avoid
+    # rate-limiting: 500 parallel Deezer calls → many timeouts → missing previews.
+    sem = asyncio.Semaphore(8)
+
     async def enrich(track):
         if not track.get("preview") or not track.get("cover"):
-            extra = await deezer_enrich(session, track["artist"], track["title"])
+            async with sem:
+                extra = await deezer_enrich(session, track["artist"], track["title"])
             return {**track, **{k: v for k, v in extra.items() if not track.get(k)}}
         return track
 
     enriched = await asyncio.gather(*[enrich(t) for t in all_tracks])
-    return json(list(enriched))
+    # Only return tracks that have a playable preview — drop anything without one
+    with_preview = [t for t in enriched if t.get("preview")]
+    return json(with_preview)
 
 
 @playlists_bp.delete("/<playlist_id>")

@@ -127,3 +127,10 @@ ALTER TABLE daily_challenges ADD COLUMN IF NOT EXISTS completion_rank INT;
 ALTER TABLE daily_challenges ADD COLUMN IF NOT EXISTS candidates JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE daily_challenges ADD COLUMN IF NOT EXISTS abandoned_at TIMESTAMPTZ;
 ALTER TABLE daily_challenges ADD COLUMN IF NOT EXISTS seed BIGINT;
+
+-- User preview volume preference
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preview_volume REAL DEFAULT 0.5;
+
+-- Unique word scoring
+ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS unique_correct INT;
+ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS unique_total INT;

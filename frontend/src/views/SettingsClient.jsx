@@ -54,9 +54,13 @@ const USERNAME_RE = /^[a-zA-Z0-9_\-\.]{2,20}$/;
 export default function SettingsClient() {
   const { theme, setTheme } = useTheme();
   const { t, locale, setLocale } = useI18n();
-  const { user, refreshUser, logout } = useAuth();
+  const { user, loading: authLoading, refreshUser, logout } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!authLoading && !user) router.replace("/login");
+  }, [user, authLoading]);
 
   const [langOpen, setLangOpen] = useState(false);
   const [publicHistory, setPublicHistory] = useState(true);
@@ -434,7 +438,7 @@ export default function SettingsClient() {
               {deleteStep === 0 && (
                 <button
                   onClick={() => setDeleteStep(1)}
-                  className="h-9 border border-border text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+                  className="h-9 border border-red-500/30 text-xs text-red-500/60 hover:border-red-500 hover:text-red-500 transition-colors"
                 >
                   {t("settings.delete")}
                 </button>
@@ -483,7 +487,7 @@ export default function SettingsClient() {
                     <button
                       onClick={handleDeleteAccount}
                       disabled={deleting}
-                      className="flex-1 h-9 border border-border text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="flex-1 h-9 border border-red-500/40 text-xs text-red-500 hover:border-red-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       {deleting ? "..." : t("settings.delete.confirm")}
                     </button>

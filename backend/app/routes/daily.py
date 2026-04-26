@@ -18,7 +18,7 @@ daily_bp = Blueprint("daily", url_prefix="/api")
 LRCLIB_BASE = "https://lrclib.net/api"
 LASTFM_API_KEY = os.environ.get("LASTFM_API_KEY", "b25b959554ed76058ac220b7b2e0a026")
 LASTFM_BASE = "https://ws.audioscrobbler.com/2.0/"
-MAX_REROLLS = 3
+MAX_REROLLS = 5
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -522,11 +522,33 @@ async def get_yesterday(request):
     if not row:
         return json({"available": False})
 
+    # Fetch revealed_ids from the most recent game session for this daily challenge
+    found_ids = None
+    session_row = await pool.fetchrow(
+        """
+        SELECT details FROM game_sessions
+        WHERE user_id = $1 AND is_daily = TRUE
+          AND LOWER(artist) = LOWER($2) AND LOWER(title) = LOWER($3)
+        ORDER BY played_at DESC LIMIT 1
+        """,
+        user_id, row["artist"], row["title"],
+    )
+    if session_row and session_row["details"]:
+        try:
+            details = json_mod.loads(session_row["details"])
+            revealed = details.get("revealed_ids", [])
+            found_ids = [int(x) for x in revealed]
+        except Exception:
+            pass
+
     return json({
-        "available": True,
-        "artist":    row["artist"],
-        "title":     row["title"],
-        "album":     row["album"] or "",
-        "cover":     row["cover"] or "",
-        "completed": row["completed_at"] is not None,
+        "available":  True,
+        "artist":     row["artist"],
+        "title":      row["title"],
+        "album":      row["album"] or "",
+        "cover":      row["cover"] or "",
+        "seed":       row["seed"],
+        "completed":  row["completed_at"] is not None,
+        "abandoned":  row["abandoned_at"] is not None,
+        "found_ids":  found_ids,  # None = no data, [] = none found, [1,2,...] = partial
     })

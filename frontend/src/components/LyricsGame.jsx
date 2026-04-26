@@ -43,9 +43,18 @@ export default function LyricsGame({ tokens, answerToken, onReveal, onFirstMatch
       });
       const data = await res.json();
       setResults(data.results);
-      setCorrectAnswers(data.correct_answers ?? {});
+      const ca = data.correct_answers ?? {};
+      setCorrectAnswers(ca);
+      // Unique word scoring: group blanks by their expected word
+      const allWords     = new Set(Object.values(ca).map(w => w.toLowerCase()));
+      const correctWords = new Set(
+        Object.entries(data.results ?? {})
+          .filter(([, ok]) => ok)
+          .map(([id]) => (ca[id] ?? "").toLowerCase())
+      );
       onReveal?.({
-        score: { correct: data.correct, total: data.total },
+        score:  { correct: data.correct, total: data.total },
+        unique: { correct: correctWords.size, total: allWords.size },
         details: {
           type: "normal",
           items: blankIds.map((id) => ({

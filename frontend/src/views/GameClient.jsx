@@ -346,8 +346,10 @@ export default function GameClient() {
       album: gameData?.song?.album ?? album,
       cover,
       difficulty, mode,
-      score_correct: data?.score?.correct ?? 0,
-      score_total: data?.score?.total ?? 0,
+      score_correct:   data?.score?.correct  ?? 0,
+      score_total:     data?.score?.total    ?? 0,
+      unique_correct:  data?.unique?.correct ?? null,
+      unique_total:    data?.unique?.total   ?? null,
       duration_seconds: timer.seconds,
       details: data?.details ? JSON.stringify(data.details) : null,
     };

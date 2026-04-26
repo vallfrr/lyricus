@@ -2,7 +2,7 @@ import asyncio
 import random
 import re
 import aiohttp
-from sanic import Blueprint, json
+from sanic import Blueprint, json, HTTPResponse
 from sanic.exceptions import SanicException
 from app.utils import cache as cache_store
 from app.utils.ratelimit import is_rate_limited, rate_limit_response
@@ -90,58 +90,177 @@ def _slug(s: str) -> str:
     return re.sub(r"[^\w\s]", "", s).strip()
 
 
+# Strips parenthetical/bracketed metadata tags from track titles:
+# (Explicit), (Deluxe), (Live at ...), (feat. X), (Radio Edit), (Remastered), etc.
+_TITLE_JUNK_RE = re.compile(
+    r'''\s*[\(\[]\s*(?:
+        feat\.?|ft\.?|with|prod\.?|prod\s+by   # featuring / production credits
+        |explicit|clean|censored                 # content rating
+        |deluxe(?:\s+edition)?|bonus\s+track    # release variant
+        |live(?:\s+at|\s+from|\s+version)?      # live recordings
+        |acoustic(?:\s+version)?                # acoustic
+        |radio\s*edit                            # radio edit
+        |official(?:\s+(?:video|audio|music\s+video))?  # official video/audio
+        |lyric[s]?(?:\s+video)?                 # lyric video
+        |instrumental                            # instrumental
+        |remaster(?:ed)?(?:\s+\d{4})?           # remastered
+        |extended(?:\s+(?:version|mix))?        # extended
+        |(?:\d{4}\s+)?remaster                  # year remaster
+        |original\s+(?:version|mix|recording)  # original version
+        |anniversary\s+edition                  # anniversary
+        |single\s+version                       # single version
+        |from\s+.+                              # from "Soundtrack"
+        |mono(?:\s+version)?|stereo             # mono/stereo
+    )[^\)\]]*[\)\]]''',
+    re.IGNORECASE | re.VERBOSE,
+)
+
 async def deezer_enrich(session, artist: str, title: str) -> dict:
-    """Fetch cover + preview URL from Deezer search.
-    Deezer 30s preview URLs (cdns-preview-*.dzcdn.net) are publicly accessible
-    from browsers — no auth tokens, no IP binding, unlike full-track CDN URLs."""
+    """Fetch cover + preview URL from Deezer search."""
     cache_key = f"dz_enrich:{artist.lower()}:{title.lower()}"
     cached = cache_store.get(cache_key)
     if cached is not None:
         return cached
 
-    try:
-        async with session.get(
-            f"{DEEZER_BASE}/search",
-            params={"q": f"{artist} {title}", "limit": "10"},
-        ) as r:
-            if r.status != 200:
-                return {}
-            data = await r.json()
-    except Exception:
-        return {}
+    # Strip featuring from artist name
+    clean_artist = _FEAT_RE.sub("", artist).strip()
+    # Strip all metadata tags from title: (Explicit), (Live), (feat. X), etc.
+    clean_title = _TITLE_JUNK_RE.sub("", title).strip()
+    # Also handle bare feat. without parentheses: "Title feat. X" → "Title"
+    clean_title = re.sub(r'\s+(?:feat\.?|ft\.?)\s+.+$', '', clean_title, flags=re.IGNORECASE).strip()
 
-    t_slug = _slug(title)
-    a_slug = _slug(_FEAT_RE.sub("", artist))
-    results = data.get("data", [])
+    print(f"[enrich] '{artist}' – '{title}'  =>  artist='{clean_artist}'  title='{clean_title}'")
 
-    best = None
-    for result in results:
-        found_title  = _slug(result.get("title_short") or result.get("title", ""))
-        found_artist = _slug(result.get("artist", {}).get("name", ""))
-        title_ok  = t_slug in found_title or found_title in t_slug
-        artist_ok = a_slug in found_artist or found_artist in a_slug
-        if title_ok and artist_ok:
-            best = result
-            break
+    async def _search(q: str, limit: int) -> list:
+        try:
+            async with session.get(
+                f"{DEEZER_BASE}/search",
+                params={"q": q, "limit": str(limit)},
+                timeout=aiohttp.ClientTimeout(total=6),
+            ) as r:
+                if r.status != 200:
+                    print(f"[enrich] Deezer HTTP {r.status} for q={q!r}")
+                    return []
+                data = await r.json(content_type=None)
+                return data.get("data", [])
+        except Exception as e:
+            print(f"[enrich] request error: {e}")
+            return []
 
-    # Fallback: title match only (artist name stored in DB may differ slightly)
-    if not best:
+    t_slug = _slug(clean_title)
+    a_slug = _slug(clean_artist)
+    # Fallback slug: strip ALL parentheses/brackets content (catches edge cases the regex missed)
+    t_slug_bare = _slug(re.sub(r'\s*[\(\[].*?[\)\]]', '', clean_title))
+
+    def _best_match(results: list) -> dict | None:
+        # Pass 1: both title + artist match (try cleaned slug, then bare slug)
+        for result in results:
+            found_title  = _slug(result.get("title_short") or result.get("title", ""))
+            found_artist = _slug(result.get("artist", {}).get("name", ""))
+            artist_ok = a_slug in found_artist or found_artist in a_slug
+            if not artist_ok:
+                continue
+            if t_slug in found_title or found_title in t_slug:
+                return result
+            if t_slug_bare and (t_slug_bare in found_title or found_title in t_slug_bare):
+                return result
+        # Pass 2: title only — artist name may differ across platforms
         for result in results:
             found_title = _slug(result.get("title_short") or result.get("title", ""))
             if t_slug in found_title or found_title in t_slug:
-                best = result
-                break
+                return result
+            if t_slug_bare and (t_slug_bare in found_title or found_title in t_slug_bare):
+                return result
+        return None
+
+    best = None
+
+    # 1) Strict search using Deezer's advanced syntax
+    strict = await _search(f'artist:"{clean_artist}" track:"{clean_title}"', 10)
+    print(f"[enrich] strict results: {len(strict)}")
+    if strict:
+        best = _best_match(strict)
+
+    # 2) Loose fallback — always try if strict found nothing useful
+    if not best:
+        loose = await _search(f"{clean_artist} {clean_title}", 25)
+        print(f"[enrich] loose results: {len(loose)}")
+        if loose:
+            best = _best_match(loose)
+
+    # 3) Title-only fallback — some artists have different spellings across platforms
+    if not best:
+        title_only = await _search(clean_title, 15)
+        print(f"[enrich] title-only results: {len(title_only)}")
+        if title_only:
+            best = _best_match(title_only)
 
     if best:
+        preview = best.get("preview", "")
+        print(f"[enrich] FOUND '{best.get('title_short')}' by '{best.get('artist',{}).get('name')}' — preview={'YES' if preview else 'EMPTY'}")
         extra = {
             "cover":   best.get("album", {}).get("cover_medium", ""),
-            "preview": best.get("preview", ""),
+            "preview": preview,
         }
-        cache_store.set(cache_key, extra)
+        # Deezer hdnea tokens expire after ~2h — cache for 20 min to stay safe
+        cache_store.set(cache_key, extra, ttl=1200)
         return extra
 
-    # Don't cache misses — let the backfill retry on next startup
+    print(f"[enrich] NOT FOUND for '{clean_title}' by '{clean_artist}' (t_slug={t_slug!r}, a_slug={a_slug!r})")
+    # Don't cache misses — let it retry next time
     return {}
+
+
+@songs_bp.get("/preview")
+async def proxy_preview(request):
+    """Proxy Deezer preview audio through the backend.
+    Deezer CDN tokens (hdnea) are bound to the requesting IP.
+    Since the backend fetched the URL, only requests from this server's IP work —
+    the browser must go through us."""
+    url = request.args.get("url", "").strip()
+    if not url or "dzcdn.net" not in url:
+        raise SanicException("Invalid preview URL", status_code=400)
+
+    ip = request.ip or "unknown"
+    if is_rate_limited(ip, key="preview", max_req=120, window=60):
+        return rate_limit_response()
+
+    # Akamai CDN validates Referer + Origin — spoof deezer.com to pass the check
+    req_headers = {
+        "Referer":    "https://www.deezer.com/",
+        "Origin":     "https://www.deezer.com",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    }
+    range_hdr = request.headers.get("Range")
+    if range_hdr:
+        req_headers["Range"] = range_hdr
+
+    session = request.app.ctx.session
+    try:
+        async with session.get(
+            url,
+            headers=req_headers,
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as resp:
+            body = await resp.read()
+            content_type = resp.headers.get("Content-Type", "audio/mpeg")
+            print(f"[preview proxy] {resp.status} {content_type} {len(body)}b for {url[:60]}...")
+            resp_headers = {
+                "Cache-Control": "public, max-age=1800",
+                "Access-Control-Allow-Origin": "*",
+                "Accept-Ranges": "bytes",
+            }
+            if "Content-Range" in resp.headers:
+                resp_headers["Content-Range"] = resp.headers["Content-Range"]
+            return HTTPResponse(
+                body=body,
+                status=resp.status,
+                content_type=content_type,
+                headers=resp_headers,
+            )
+    except Exception as e:
+        print(f"[preview proxy] error: {e}")
+        raise SanicException("Preview unavailable", status_code=502)
 
 
 @songs_bp.get("/genres")

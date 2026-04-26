@@ -36,7 +36,8 @@ WITH best_per_song AS (
         LOWER(s.artist) AS artist,
         LOWER(s.title)  AS title,
         MAX(
-            (s.score_correct * 100.0 / s.score_total) *
+            (COALESCE(s.unique_correct, s.score_correct)::numeric /
+             COALESCE(NULLIF(s.unique_total, 0), s.score_total)::numeric * 100.0) *
             CASE s.difficulty
                 WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
                 WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
@@ -166,7 +167,8 @@ async def get_user_profile(request, username: str):
             FROM (
                 SELECT user_id,
                        MAX(
-                           (score_correct * 100.0 / score_total) *
+                           (COALESCE(unique_correct, score_correct)::numeric /
+                            COALESCE(NULLIF(unique_total, 0), score_total)::numeric * 100.0) *
                            CASE difficulty
                                WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
                                WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
@@ -203,7 +205,8 @@ async def get_user_profile(request, username: str):
         WITH best_per_song AS (
             SELECT s2.user_id,
                    MAX(
-                       (s2.score_correct * 100.0 / s2.score_total) *
+                       (COALESCE(s2.unique_correct, s2.score_correct)::numeric /
+                        COALESCE(NULLIF(s2.unique_total, 0), s2.score_total)::numeric * 100.0) *
                        CASE s2.difficulty
                            WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
                            WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0

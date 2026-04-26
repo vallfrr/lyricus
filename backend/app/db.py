@@ -55,7 +55,7 @@ async def update_username(pool, user_id: str, name: str) -> dict | None:
         return None
 
 
-_ALL_COLS = "id, email, name, username_set, public_history, google_id, discord_id, apple_id, facebook_id, password_hash"
+_ALL_COLS = "id, email, name, username_set, public_history, preview_volume, google_id, discord_id, apple_id, facebook_id, password_hash"
 
 
 async def get_user_by_id(pool, user_id: str) -> dict | None:
@@ -152,7 +152,8 @@ _DIFF_MULT = {"easy": 1.0, "medium": 1.5, "hard": 2.5, "extreme": 4.0}
 
 _POINTS_SQL = """
     SELECT COALESCE(MAX(
-        (score_correct * 100.0 / score_total) *
+        (COALESCE(unique_correct, score_correct)::numeric /
+         COALESCE(NULLIF(unique_total, 0), score_total)::numeric * 100.0) *
         CASE difficulty
             WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
             WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
@@ -164,13 +165,22 @@ _POINTS_SQL = """
 """
 
 async def compute_points_gained(pool, user_id: str, artist: str, title: str,
-                                difficulty: str, score_correct: int, score_total: int) -> tuple[int, int]:
+                                difficulty: str, score_correct: int, score_total: int,
+                                unique_correct: int | None = None,
+                                unique_total:   int | None = None) -> tuple[int, int]:
     """Returns (new_song_points, gained_points).
+    Points are based on unique words found (each distinct word counts once regardless
+    of how many times it appears in the lyrics). Falls back to raw counts if not provided.
     Call BEFORE saving/finishing the current session so it's not yet in 'finished' state."""
     if score_total == 0:
         return 0, 0
-    mult     = _DIFF_MULT.get(difficulty, 1.0)
-    new_pts  = (score_correct * 100.0 / score_total) * mult
+    mult = _DIFF_MULT.get(difficulty, 1.0)
+    # Use unique word ratio if available; otherwise fall back to raw ratio
+    if unique_correct is not None and unique_total and unique_total > 0:
+        ratio = unique_correct / unique_total
+    else:
+        ratio = score_correct / score_total
+    new_pts  = ratio * 100.0 * mult
     old_best = await pool.fetchval(_POINTS_SQL, user_id, artist.lower(), title.lower())
     gained   = max(0.0, new_pts - float(old_best or 0))
     return round(new_pts), round(gained)
@@ -182,14 +192,16 @@ async def save_game_session(pool, user_id: str, data: dict) -> str:
             """
             INSERT INTO game_sessions
               (user_id, artist, title, album, difficulty, mode,
-               score_correct, score_total, duration_seconds, cover, details, status)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'finished')
+               score_correct, score_total, unique_correct, unique_total,
+               duration_seconds, cover, details, status)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'finished')
             RETURNING id
             """,
             user_id,
             data["artist"], data["title"], data.get("album", ""),
             data["difficulty"], data["mode"],
             data["score_correct"], data["score_total"],
+            data.get("unique_correct"), data.get("unique_total"),
             data.get("duration_seconds"),
             data.get("cover", ""),
             data.get("details"),
@@ -221,14 +233,18 @@ async def finish_db_session(pool, session_id: str, user_id: str, data: dict):
             """
             UPDATE game_sessions
             SET status = 'finished',
-                score_correct = $1,
-                score_total = $2,
-                duration_seconds = $3,
-                details = $4
-            WHERE id = $5 AND user_id = $6
+                score_correct    = $1,
+                score_total      = $2,
+                unique_correct   = $3,
+                unique_total     = $4,
+                duration_seconds = $5,
+                details          = $6
+            WHERE id = $7 AND user_id = $8
             """,
             data.get("score_correct", 0),
             data.get("score_total", 0),
+            data.get("unique_correct"),
+            data.get("unique_total"),
             data.get("duration_seconds"),
             data.get("details"),
             session_id, user_id

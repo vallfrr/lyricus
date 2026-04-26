@@ -205,8 +205,14 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
     const r = (revealedOverride instanceof Set) ? revealedOverride : revealed;
     stopListening();
     setFinished(true);
+    // Unique word scoring: "caca" × 400 = 1 unique word, not 400
+    const uniqueTotal   = Object.keys(wordMap).length;
+    const uniqueCorrect = Object.keys(wordMap).filter(
+      w => wordMap[w].some(id => r.has(id))
+    ).length;
     onReveal?.({
-      score: { correct: r.size, total: totalBlanks },
+      score:   { correct: r.size, total: totalBlanks },
+      unique:  { correct: uniqueCorrect, total: uniqueTotal },
       details: { type: "flow", revealed_ids: [...r], total: totalBlanks },
     });
   }

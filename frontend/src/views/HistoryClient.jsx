@@ -17,6 +17,12 @@ function fmt(iso) {
 }
 function fmtDur(s) {
   if (!s) return "—";
+  if (s >= 3600) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  }
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
@@ -72,7 +78,7 @@ export default function HistoryClient() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { router.replace("/"); return; }
+    if (!user) { router.replace("/login"); return; }
 
     const localGames = getInProgressGames();
 
@@ -195,86 +201,84 @@ export default function HistoryClient() {
               placeholder={t("history.search")}
               className="w-full h-8 px-3 text-xs bg-background text-foreground placeholder:text-muted-foreground border border-border focus:outline-none focus:border-foreground transition-colors"
             />
-          <div className="border border-border">
-            {history.filter((g) => {
-              const q = normalize(search.trim());
-              if (!q) return true;
-              return normalize(g.title).includes(q) || normalize(g.artist).includes(q);
-            }).map((g) => {
-              const pct = g.score_total > 0 ? Math.round(g.score_correct * 100 / g.score_total) : 0;
-              const mainArtist = cleanArtist(g.artist);
-              const isConfirming = confirmDelete === g.id;
-              return (
-                <div
-                  key={g.id}
-                  className="group grid grid-cols-[auto_1fr_auto_2rem] items-center gap-0 border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
-                  onClick={() => {
-                    if (isConfirming) return;
-                    const p = new URLSearchParams({ artist: g.artist, title: g.title });
-                    if (g.album) p.set("album", g.album);
-                    if (g.cover) p.set("cover", g.cover);
-                    router.push(`/?${p}`);
-                  }}
-                >
-                  {/* Cover */}
-                  <div className="p-2 shrink-0">
-                    {g.cover
-                      ? <img src={g.cover} alt={g.title} width={32} height={32} className="w-8 h-8 object-cover border border-border" />
-                      : <div className="w-8 h-8 border border-border bg-secondary" />
-                    }
-                  </div>
-                  {/* Song info */}
-                  <div className="px-2 py-2.5 min-w-0">
-                    <p className="text-xs font-medium truncate">{g.title}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      <Link
-                        href={`/artist/${encodeURIComponent(mainArtist)}`}
-                        className="hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {g.artist}
-                      </Link>
-                      {" · "}{fmt(g.played_at)}
-                    </p>
-                  </div>
-                  {/* Right area: details OR confirmation */}
-                  {isConfirming ? (
-                    <div
-                      className="flex items-center justify-end gap-2 pl-2 pr-1 py-2.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t("history.delete.confirm")}</span>
-                      <button
-                        onClick={() => handleDeleteHistory(g.id)}
-                        className="text-[10px] border border-border px-1.5 py-0.5 text-muted-foreground hover:border-green-500 hover:text-green-500 transition-colors shrink-0"
-                      >✓</button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-end gap-3 px-2 py-2.5">
-                      <span className={cn("text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
-                        {DIFF_LABELS[g.difficulty] ?? g.difficulty}
-                      </span>
-                      <span className="text-xs tabular-nums font-medium">{pct}%</span>
-                      <span className="text-xs text-muted-foreground tabular-nums">{fmtDur(g.duration_seconds)}</span>
-                    </div>
-                  )}
-                  {/* Delete / cancel button — always at same position */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConfirmDelete(isConfirming ? null : g.id);
+            <div className="border border-border">
+              {history.filter((g) => {
+                const q = normalize(search.trim());
+                if (!q) return true;
+                return normalize(g.title).includes(q) || normalize(g.artist).includes(q);
+              }).map((g) => {
+                const pct = g.score_total > 0 ? Math.round(g.score_correct * 100 / g.score_total) : 0;
+                const mainArtist = cleanArtist(g.artist);
+                const isConfirming = confirmDelete === g.id;
+                return (
+                  <div
+                    key={g.id}
+                    className="group grid grid-cols-[auto_1fr_6rem_3.5rem_5rem_2rem] items-center border-b border-border last:border-0 hover:bg-accent transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (isConfirming) return;
+                      const p = new URLSearchParams({ artist: g.artist, title: g.title });
+                      if (g.album) p.set("album", g.album);
+                      if (g.cover) p.set("cover", g.cover);
+                      router.push(`/?${p}`);
                     }}
-                    className={cn(
-                      "self-stretch flex items-center justify-center w-8 text-[11px] border-l border-border transition-colors shrink-0",
-                      isConfirming
-                        ? "text-muted-foreground hover:text-foreground"
-                        : "text-transparent group-hover:text-muted-foreground hover:text-foreground"
-                    )}
-                  >✕</button>
-                </div>
-              );
-            })}
-          </div>
+                  >
+                    {/* Cover */}
+                    <div className="p-2 shrink-0">
+                      {g.cover
+                        ? <img src={g.cover} alt={g.title} width={32} height={32} className="w-8 h-8 object-cover border border-border" />
+                        : <div className="w-8 h-8 border border-border bg-secondary" />
+                      }
+                    </div>
+                    {/* Song info */}
+                    <div className="px-2 py-2.5 min-w-0">
+                      <p className="text-xs font-medium truncate">{g.title}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        <Link
+                          href={`/artist/${encodeURIComponent(mainArtist)}`}
+                          className="hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >{g.artist}</Link>
+                        {" · "}{fmt(g.played_at)}
+                        {g.is_daily && <span className="ml-1 text-[9px] opacity-50 uppercase">·{t("history.daily")}</span>}
+                      </p>
+                    </div>
+                    {/* Difficulty */}
+                    <div className={cn("px-2 py-2.5 text-xs tabular-nums", DIFF_COLOR[g.difficulty] ?? "text-muted-foreground")}>
+                      {isConfirming ? "" : (DIFF_LABELS[g.difficulty] ?? g.difficulty)}
+                    </div>
+                    {/* Score % */}
+                    <div className="px-2 py-2.5 text-xs tabular-nums font-medium">
+                      {isConfirming ? (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t("history.delete.confirm")}</span>
+                          <button
+                            onClick={() => handleDeleteHistory(g.id)}
+                            className="text-[10px] border border-border px-1 py-0.5 text-muted-foreground hover:border-green-500 hover:text-green-500 transition-colors"
+                          >✓</button>
+                        </div>
+                      ) : `${pct}%`}
+                    </div>
+                    {/* Duration */}
+                    <div className="px-2 py-2.5 text-xs tabular-nums text-muted-foreground">
+                      {isConfirming ? "" : fmtDur(g.duration_seconds)}
+                    </div>
+                    {/* Delete / cancel */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDelete(isConfirming ? null : g.id);
+                      }}
+                      className={cn(
+                        "self-stretch flex items-center justify-center text-[11px] border-l border-border transition-colors",
+                        isConfirming
+                          ? "text-muted-foreground hover:text-foreground"
+                          : "text-transparent group-hover:text-muted-foreground hover:text-foreground"
+                      )}
+                    >✕</button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </main>

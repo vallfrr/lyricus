@@ -33,6 +33,7 @@ async def create_session(request):
         request.app.ctx.pool, user["sub"],
         body["artist"], body["title"], body["difficulty"],
         body["score_correct"], body["score_total"],
+        body.get("unique_correct"), body.get("unique_total"),
     )
 
     session_id = await db.save_game_session(request.app.ctx.pool, user["sub"], body)
@@ -148,6 +149,7 @@ async def finish_session(request, session_id):
             pool, user["sub"],
             row["artist"], row["title"], row["difficulty"],
             body.get("score_correct", 0), body.get("score_total", 0),
+            body.get("unique_correct"), body.get("unique_total"),
         )
 
     await db.finish_db_session(pool, str(session_id), user["sub"], body)

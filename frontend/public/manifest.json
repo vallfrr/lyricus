@@ -1,7 +1,7 @@
 {
   "name": "lyricus",
   "short_name": "lyricus",
-  "description": "Complète les paroles manquantes de tes chansons préférées",
+  "description": "Complète les paroles de tes chansons préférées",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0d0d0d",
