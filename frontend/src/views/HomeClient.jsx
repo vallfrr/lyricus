@@ -242,7 +242,7 @@ function DailyCard({ difficulty }) {
               disabled={!canReroll || rerolling}
               className="text-[10px] text-muted-foreground border border-border px-2 py-0.5 hover:border-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:pointer-events-none whitespace-nowrap"
             >
-              ↻ {data.rerolls_remaining} {t("daily.reroll")}
+              ↻ {Math.max(0, data.rerolls_remaining)} {t("daily.reroll")}
             </button>
           )}
         </div>
@@ -261,9 +261,15 @@ function DailyCard({ difficulty }) {
         )}
 
         {!loading && data?.locked && (
-          <p className="px-3 py-4 text-xs text-muted-foreground">
-            {data.reason === "auth" ? t("daily.locked.auth") : t("daily.locked.no_games")}
-          </p>
+          data.reason === "auth" ? (
+            <Link href="/login" className="block px-3 py-4 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+              {t("daily.locked.auth")}
+            </Link>
+          ) : (
+            <p className="px-3 py-4 text-xs text-muted-foreground">
+              {t("daily.locked.no_games")}
+            </p>
+          )
         )}
 
         {!loading && !data?.locked && data?.artist && (

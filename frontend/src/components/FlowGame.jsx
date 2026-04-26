@@ -128,47 +128,43 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
   }
 
   // ── Voice: fuzzy match ───────────────────────────────────────────────────
+  const restartTimerRef = useRef(null);
+
+  function processMatches(candidates) {
+    const { newRevealed, matchCount } = matchFuzzy(candidates, wordMap, revealedRef.current);
+    if (matchCount > 0) {
+      revealedRef.current = newRevealed;
+      setRevealed(newRevealed);
+      triggerFlash();
+      notifyFirstMatch();
+      autoFinishIfComplete(newRevealed);
+    }
+  }
+
   const startListening = useCallback(() => {
     if (!SpeechRecognition) return;
+    clearTimeout(restartTimerRef.current);
+
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    // continuous:false is more reliable on Android Chrome —
+    // we restart manually in onend instead.
+    recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = voiceLang;
-    recognition.maxAlternatives = 3;
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
       let interimText = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
-          const allCandidates = new Set();
-          for (let alt = 0; alt < result.length; alt++) {
-            if (result[alt].confidence >= 0.4) {
-              for (const w of transcriptWords(result[alt].transcript)) allCandidates.add(w);
-            }
-          }
-          const { newRevealed, matchCount } = matchFuzzy(allCandidates, wordMap, revealedRef.current);
-          if (matchCount > 0) {
-            revealedRef.current = newRevealed;
-            setRevealed(newRevealed);
-            triggerFlash();
-            notifyFirstMatch();
-            autoFinishIfComplete(newRevealed);
-          }
+          const candidates = new Set(transcriptWords(result[0].transcript));
+          processMatches(candidates);
           setInterim("");
         } else {
           interimText += result[0].transcript;
-          if (result[0].confidence >= 0.65 || result[0].confidence === 0) {
-            const candidates = transcriptWords(interimText);
-            const { newRevealed, matchCount } = matchFuzzy(candidates, wordMap, revealedRef.current);
-            if (matchCount > 0) {
-              revealedRef.current = newRevealed;
-              setRevealed(newRevealed);
-              triggerFlash();
-              notifyFirstMatch();
-              autoFinishIfComplete(newRevealed);
-            }
-          }
+          // Match interim immediately (no confidence gate — Android often reports 0)
+          processMatches(new Set(transcriptWords(interimText)));
         }
       }
       if (interimText) setInterim(interimText);
@@ -176,18 +172,35 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
 
     recognition.onerror = (e) => {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        setVoiceUnsupported(true); setListening(false);
+        setVoiceUnsupported(true);
+        setListening(false);
+        recognitionRef.current = null;
       }
+      // network / no-speech / aborted: onend will restart
     };
-    recognition.onend = () => { if (recognitionRef.current === recognition) recognition.start(); };
+
+    recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
+      // Restart after short delay to avoid rapid-fire loop on Android
+      restartTimerRef.current = setTimeout(() => {
+        if (recognitionRef.current !== recognition) return;
+        try { recognition.start(); } catch {}
+      }, 250);
+    };
 
     recognitionRef.current = recognition;
-    recognition.start();
+    try { recognition.start(); } catch {}
     setListening(true);
   }, [voiceLang]);
 
   function stopListening() {
-    if (recognitionRef.current) { const r = recognitionRef.current; recognitionRef.current = null; r.stop(); }
+    clearTimeout(restartTimerRef.current);
+    if (recognitionRef.current) {
+      const r = recognitionRef.current;
+      recognitionRef.current = null;
+      r.onend = null;
+      r.stop();
+    }
     setListening(false);
     setInterim("");
   }
