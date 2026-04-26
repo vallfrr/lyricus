@@ -68,8 +68,7 @@ async def _get_user_progress(conn, user_id: str) -> dict:
         """
         SELECT COALESCE(ROUND(SUM(song_points)), 0)::bigint FROM (
             SELECT MAX(
-                (COALESCE(unique_correct, score_correct)::numeric /
-                 COALESCE(NULLIF(unique_total, 0), score_total)::numeric * 100.0) *
+                COALESCE(unique_correct, score_correct) *
                 CASE difficulty
                     WHEN 'easy' THEN 1.0 WHEN 'medium' THEN 1.5
                     WHEN 'hard' THEN 2.5 WHEN 'extreme' THEN 4.0

@@ -152,8 +152,7 @@ _DIFF_MULT = {"easy": 1.0, "medium": 1.5, "hard": 2.5, "extreme": 4.0}
 
 _POINTS_SQL = """
     SELECT COALESCE(MAX(
-        (COALESCE(unique_correct, score_correct)::numeric /
-         COALESCE(NULLIF(unique_total, 0), score_total)::numeric * 100.0) *
+        COALESCE(unique_correct, score_correct) *
         CASE difficulty
             WHEN 'easy'    THEN 1.0 WHEN 'medium' THEN 1.5
             WHEN 'hard'    THEN 2.5 WHEN 'extreme' THEN 4.0
@@ -169,18 +168,14 @@ async def compute_points_gained(pool, user_id: str, artist: str, title: str,
                                 unique_correct: int | None = None,
                                 unique_total:   int | None = None) -> tuple[int, int]:
     """Returns (new_song_points, gained_points).
-    Points are based on unique words found (each distinct word counts once regardless
-    of how many times it appears in the lyrics). Falls back to raw counts if not provided.
+    Points = unique_correct * difficulty_multiplier.
+    Falls back to score_correct if unique data not available.
     Call BEFORE saving/finishing the current session so it's not yet in 'finished' state."""
     if score_total == 0:
         return 0, 0
-    mult = _DIFF_MULT.get(difficulty, 1.0)
-    # Use unique word ratio if available; otherwise fall back to raw ratio
-    if unique_correct is not None and unique_total and unique_total > 0:
-        ratio = unique_correct / unique_total
-    else:
-        ratio = score_correct / score_total
-    new_pts  = ratio * 100.0 * mult
+    mult    = _DIFF_MULT.get(difficulty, 1.0)
+    count   = unique_correct if unique_correct is not None else score_correct
+    new_pts = count * mult
     old_best = await pool.fetchval(_POINTS_SQL, user_id, artist.lower(), title.lower())
     gained   = max(0.0, new_pts - float(old_best or 0))
     return round(new_pts), round(gained)
@@ -345,8 +340,8 @@ async def get_user_history(pool, user_id: str, limit: int = 100) -> list[dict]:
         rows = await conn.fetch(
             """
             SELECT id, artist, title, album, difficulty, mode,
-                   score_correct, score_total, duration_seconds, played_at,
-                   cover, details, is_daily
+                   score_correct, score_total, unique_correct, unique_total,
+                   duration_seconds, played_at, cover, details, is_daily
             FROM game_sessions
             WHERE user_id = $1 AND status = 'finished'
             ORDER BY played_at DESC
