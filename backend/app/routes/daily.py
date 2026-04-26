@@ -266,7 +266,7 @@ def _row_to_dict(row, ttl: int, preview: str = "", streak: int = 0, longest_stre
         "preview":           preview,
         "seed":              seed,
         "rerolls_used":      row["rerolls_used"],
-        "rerolls_remaining": MAX_REROLLS - row["rerolls_used"],
+        "rerolls_remaining": max(0, MAX_REROLLS - row["rerolls_used"]),
         "completed":         row["completed_at"] is not None,
         "completed_at":      row["completed_at"].isoformat() if row["completed_at"] else None,
         "completion_rank":   row["completion_rank"] if row.get("completion_rank") else None,
