@@ -263,7 +263,7 @@ function DailyCard({ difficulty }) {
         )}
 
         {!loading && data?.locked && (
-          data.reason === "auth" ? (
+          !user ? (
             <Link href="/login" className="block px-3 py-4 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
               {t("daily.locked.auth")}
             </Link>
