@@ -95,7 +95,7 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
   useEffect(() => { if (!startFinished) inputRef.current?.focus(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (inputMode === "type") inputRef.current?.focus(); }, [inputMode]);
 
-  // Scroll to the first unrevealed blank when none is visible after a match
+  // Scroll to the next unrevealed blank below viewport when none is visible after a match
   useEffect(() => {
     if (!justMatchedRef.current || finished) return;
     justMatchedRef.current = false;
@@ -109,7 +109,8 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
       return top >= headerH && bottom <= vh - inputBarH;
     });
     if (!anyVisible) {
-      unrevealed[0].scrollIntoView({ behavior: "smooth", block: "center" });
+      const below = Array.from(unrevealed).find((el) => el.getBoundingClientRect().top > vh - inputBarH);
+      if (below) below.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [revealed, finished]);
 
