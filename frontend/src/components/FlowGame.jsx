@@ -55,7 +55,7 @@ function matchFuzzy(candidates, wordMap, currentRevealed) {
   return { newRevealed, matchCount };
 }
 
-export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onProgress, initialRevealed, hideEndButton, autoFinishAt, startFinished, isDaily, onAbandon }) {
+export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onProgress, initialRevealed, hideEndButton, autoFinishAt, startFinished, isDaily, onAbandon, forceReveal }) {
   const { t } = useI18n();
   const [revealed, setRevealed] = useState(() => new Set(initialRevealed ?? []));
   const [input, setInput] = useState("");
@@ -66,11 +66,13 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
   const [flash, setFlash] = useState(false);
   const [finished, setFinished] = useState(startFinished ?? false);
   const [firstMatchDone, setFirstMatchDone] = useState(false);
+  const [hinted, setHinted] = useState(() => new Set());
   const [voiceUnsupported, setVoiceUnsupported] = useState(!SpeechRecognition);
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
   const flashTimer = useRef(null);
   const revealedRef = useRef(revealed);
+  const justMatchedRef = useRef(false);
 
   const blankIds = tokens.filter((t) => t.type === "blank").map((t) => t.id);
   const totalBlanks = blankIds.length;
@@ -80,7 +82,36 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
     revealedRef.current = revealed;
     onProgress?.({ type: "flow", revealed_ids: [...revealed], total: totalBlanks });
   }, [revealed]);
+
+  // Force correction display from parent (e.g. after abandon in-place)
+  useEffect(() => {
+    if (!forceReveal) return;
+    stopListening();
+    setRevealed(forceReveal);
+    setFinished(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceReveal]);
+  // Focus input on mount (so the user can type immediately)
+  useEffect(() => { if (!startFinished) inputRef.current?.focus(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (inputMode === "type") inputRef.current?.focus(); }, [inputMode]);
+
+  // Scroll to the first unrevealed blank when none is visible after a match
+  useEffect(() => {
+    if (!justMatchedRef.current || finished) return;
+    justMatchedRef.current = false;
+    const unrevealed = document.querySelectorAll("[data-blank-unrevealed]");
+    if (!unrevealed.length) return;
+    const headerH = 40;
+    const inputBarH = 64;
+    const vh = window.innerHeight;
+    const anyVisible = Array.from(unrevealed).some((el) => {
+      const { top, bottom } = el.getBoundingClientRect();
+      return top >= headerH && bottom <= vh - inputBarH;
+    });
+    if (!anyVisible) {
+      unrevealed[0].scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [revealed, finished]);
 
   // Auto-finish at a specific timestamp (e.g. midnight for daily challenges)
   useEffect(() => {
@@ -118,6 +149,7 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
     const { newRevealed, matched } = matchExact(norm, wordMap, revealedRef.current);
     if (matched) {
       revealedRef.current = newRevealed;
+      justMatchedRef.current = true;
       setRevealed(newRevealed);
       setInput("");
       // Re-focus after clearing so the keyboard stays open on Android
@@ -135,6 +167,7 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
     const { newRevealed, matchCount } = matchFuzzy(candidates, wordMap, revealedRef.current);
     if (matchCount > 0) {
       revealedRef.current = newRevealed;
+      justMatchedRef.current = true;
       setRevealed(newRevealed);
       triggerFlash();
       notifyFirstMatch();
@@ -221,19 +254,36 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
     const r = (revealedOverride instanceof Set) ? revealedOverride : revealed;
     stopListening();
     setFinished(true);
-    // Unique word scoring: "caca" × 400 = 1 unique word, not 400
-    const uniqueTotal   = Object.keys(wordMap).length;
-    const uniqueCorrect = Object.keys(wordMap).filter(
+    const uniqueTotal = Object.keys(wordMap).length;
+    // Words found by typing (any blank revealed)
+    const uniqueFound = Object.keys(wordMap).filter(
       w => wordMap[w].some(id => r.has(id))
+    ).length;
+    // Unique words penalized: word had at least one blank hinted (even if later typed)
+    const hintedWords = new Set(
+      Object.keys(wordMap).filter(w => wordMap[w].some(id => hinted.has(id)))
+    );
+    const hintedWordsCount = hintedWords.size;
+    // Effective score: found words that were never hinted
+    const uniqueCorrect = Object.keys(wordMap).filter(
+      w => wordMap[w].some(id => r.has(id)) && !hintedWords.has(w)
     ).length;
     onReveal?.({
       score:   { correct: r.size, total: totalBlanks },
-      unique:  { correct: uniqueCorrect, total: uniqueTotal },
-      details: { type: "flow", revealed_ids: [...r], total: totalBlanks },
+      unique:  { correct: uniqueCorrect, total: uniqueTotal, found: uniqueFound, hinted: hintedWordsCount },
+      details: { type: "flow", revealed_ids: [...r], hinted_ids: [...hinted], total: totalBlanks },
     });
   }
 
   useEffect(() => () => stopListening(), []);
+
+  function hintDisplay(word) {
+    return word.split("").map((ch, i) => (i === 0 || /['\-]/.test(ch) ? ch : "·")).join("");
+  }
+
+  function handleHint(id) {
+    setHinted((prev) => { const next = new Set(prev); next.add(id); return next; });
+  }
 
   return (
     <div className={`flex flex-col gap-6 ${finished ? "pb-4" : "pb-24"}`}>
@@ -250,12 +300,15 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
             const width = Math.max(len * 9 + 16, 40);
 
             if (finished) {
+              const isHintedWord = hinted.has(id);
               return (
                 <span
                   key={i}
                   className={cn(
                     "inline font-semibold border-b mx-0.5",
-                    isRevealed
+                    isHintedWord
+                      ? "text-amber-400 border-amber-400/40"
+                      : isRevealed
                       ? "border-foreground/40"
                       : "text-red-500 border-red-500/40"
                   )}
@@ -265,16 +318,23 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
               );
             }
 
+            const isHinted = !isRevealed && hinted.has(id);
             return (
               <span
                 key={i}
+                data-blank-unrevealed={!isRevealed ? "" : undefined}
+                onClick={!isRevealed ? () => handleHint(id) : undefined}
                 className={cn(
                   "inline-block mx-0.5 align-middle px-1 py-0.5 text-sm border-b-2 transition-all duration-100",
-                  isRevealed ? "border-foreground font-semibold" : "border-border text-transparent bg-secondary select-none"
+                  isRevealed
+                    ? "border-foreground font-semibold"
+                    : isHinted
+                    ? "border-amber-400/50 text-amber-400 bg-secondary select-none"
+                    : "border-border text-transparent bg-secondary select-none cursor-pointer active:border-amber-400/50"
                 )}
                 style={{ minWidth: `${Math.max(len * 8, 24)}px` }}
               >
-                {isRevealed ? word : "·".repeat(len)}
+                {isRevealed ? word : isHinted ? hintDisplay(word) : "·".repeat(len)}
               </span>
             );
           }
@@ -343,15 +403,25 @@ export default function FlowGame({ tokens, answers, onReveal, onFirstMatch, onPr
               </button>
             )}
 
-            {isDaily && onAbandon && (
-              <button
-                onClick={onAbandon}
-                className="border border-red-500/20 text-red-500/50 px-2 h-9 text-xs hover:border-red-500/60 hover:text-red-500 transition-colors shrink-0 whitespace-nowrap"
-                title={t("daily.abandon")}
-              >
-                ✕
-              </button>
-            )}
+            {isDaily && onAbandon && (() => {
+              const ready = totalBlanks > 0 && revealed.size / totalBlanks >= 0.9;
+              return ready ? (
+                <button
+                  onClick={() => handleFinish()}
+                  className="border border-green-500/60 text-green-500 px-3 h-9 text-xs hover:bg-green-500/10 transition-colors shrink-0 whitespace-nowrap"
+                >
+                  {t("daily.complete")}
+                </button>
+              ) : (
+                <button
+                  onClick={onAbandon}
+                  className="border border-red-500/20 text-red-500/50 px-2 h-9 text-xs hover:border-red-500/60 hover:text-red-500 transition-colors shrink-0 whitespace-nowrap"
+                  title={t("daily.abandon")}
+                >
+                  ✕
+                </button>
+              );
+            })()}
           </div>
         </div>
       ) : (

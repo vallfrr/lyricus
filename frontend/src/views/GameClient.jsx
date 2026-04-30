@@ -71,9 +71,9 @@ async function updateDbProgress(sessionId, data) {
   } catch {}
 }
 
-/** Finish a DB session with the final score. Returns points_gained or 0. */
+/** Finish a DB session with the final score. Returns { points_gained, song_best }. */
 async function finishDbSession(sessionId, data) {
-  if (!sessionId) return 0;
+  if (!sessionId) return { points_gained: 0, song_best: 0 };
   try {
     const r = await fetch(`/api/history/${sessionId}`, {
       method: "PATCH",
@@ -83,10 +83,10 @@ async function finishDbSession(sessionId, data) {
     });
     if (r.ok) {
       const json = await r.json();
-      return json.points_gained ?? 0;
+      return { points_gained: json.points_gained ?? 0, song_best: json.song_best ?? 0 };
     }
   } catch {}
-  return 0;
+  return { points_gained: 0, song_best: 0 };
 }
 
 /** Delete an unfinished DB session (user discards it). */
@@ -113,8 +113,10 @@ export default function GameClient() {
   const [copied, setCopied] = useState(false);
   const [newBadges, setNewBadges] = useState([]);
   const [pointsGained, setPointsGained] = useState(0);
+  const [breakdown, setBreakdown] = useState(null);
   const [abandonConfirm, setAbandonConfirm] = useState(false);
   const [leaveConfirm, setLeaveConfirm] = useState(false);
+  const [forceReveal, setForceReveal] = useState(null);
   const pendingPayloadRef = useRef(null);
   const [savedProgress, setSavedProgress] = useState(null);
   const [resumeDecided, setResumeDecided] = useState(false);
@@ -358,11 +360,19 @@ export default function GameClient() {
       duration_seconds: timer.seconds,
       details: data?.details ? JSON.stringify(data.details) : null,
     };
+    const MULTIPLIERS = { easy: 1.0, medium: 1.5, hard: 2.5, extreme: 4.0 };
+    const mult = MULTIPLIERS[difficulty] ?? 1.0;
+    const uniqueFound   = data?.unique?.found   ?? (data?.unique?.correct ?? 0);
+    const hintedCount   = data?.unique?.hinted  ?? 0;
+    const uniqueCorrect = data?.unique?.correct  ?? 0;
+    const netPoints = Math.round(uniqueCorrect * mult);
+
     if (!user) { pendingPayloadRef.current = payload; return; }
     // If we already have an unfinished DB session, patch it; otherwise create a finished session
     let gained = 0;
+    let songBest = 0;
     if (dbSessionId) {
-      gained = await finishDbSession(dbSessionId, payload);
+      ({ points_gained: gained, song_best: songBest } = await finishDbSession(dbSessionId, payload));
     } else {
       try {
         const r = await fetch("/api/history/", {
@@ -374,10 +384,14 @@ export default function GameClient() {
         if (r.ok) {
           const d = await r.json();
           gained = d.points_gained ?? 0;
+          songBest = d.song_best ?? 0;
         }
       } catch {}
     }
     if (gained > 0) setPointsGained(gained);
+    // previousBest = what this song was worth before this session
+    const previousBest = songBest - gained;
+    setBreakdown({ uniqueFound, hintedCount, uniqueCorrect, multiplier: mult, netPoints, previousBest, gained });
     // Check for newly unlocked badges
     try {
       const br = await fetch("/api/badges/check", { method: "POST", credentials: "include" });
@@ -399,14 +413,13 @@ export default function GameClient() {
     return `/game?${p}`;
   }
 
-  function buildChallengeUrl() {
+  function buildShareUrl() {
     if (!score) return null;
     const pct = score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0;
     const p = new URLSearchParams({
       artist: gameData?.song?.artist ?? artist,
       title:  gameData?.song?.title ?? title,
-      album:  gameData?.song?.album ?? album,
-      cover, difficulty,
+      difficulty,
       challenge_score: String(pct),
       challenge_total: String(score.total),
     });
@@ -415,23 +428,54 @@ export default function GameClient() {
     return `${window.location.origin}/challenge?${p}`;
   }
 
+  function buildShareText() {
+    if (!score) return null;
+    const pct = score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0;
+    const songTitle = gameData?.song?.title ?? title;
+    const songArtist = gameData?.song?.artist ?? artist;
+    const url = buildShareUrl();
+    const text = t("game.share.text")
+      .replace("{score}", pct)
+      .replace("{title}", songTitle)
+      .replace("{artist}", songArtist);
+    return `${text}\n${url}`;
+  }
+
   async function handleAbandon() {
     track("daily_abandoned", { difficulty });
-    // Capture found IDs before clearing progress
     const revealedIds = latestDataRef.current?.revealed_ids ?? [];
+    const foundSet = new Set(revealedIds.map(Number));
+    const totalBlanks = gameData?.tokens?.filter(t => t.type === "blank").length ?? 0;
     try {
       const r = await fetch("/api/daily/abandon", { method: "POST", credentials: "include" });
       if (r.ok) {
         clearProgress(artist, title, difficulty, mode);
-        if (dbSessionId) discardDbSession(dbSessionId);
-        // Store found IDs in localStorage so correction view can show found vs missed
+        // Finish session (don't discard) so found_ids persist for yesterday's correction
+        if (dbSessionId) {
+          await finishDbSession(dbSessionId, {
+            artist: gameData?.song?.artist ?? artist,
+            title:  gameData?.song?.title ?? title,
+            album:  gameData?.song?.album ?? album,
+            cover, difficulty, mode,
+            score_correct:    foundSet.size,
+            score_total:      totalBlanks,
+            unique_correct:   null,
+            unique_total:     null,
+            duration_seconds: timer.seconds,
+            details: JSON.stringify({ type: "flow", revealed_ids: revealedIds, total: totalBlanks }),
+          });
+        }
+        // Store in localStorage for same-session reference
         try {
           const today = new Date().toISOString().split("T")[0];
           localStorage.setItem(`lyricusDailyFoundIds_${today}`, JSON.stringify({
             artist, title, seed: gameData?.seed ?? null, found_ids: revealedIds,
           }));
         } catch {}
-        router.push("/");
+        // Show correction in-place — don't navigate away
+        setForceReveal(foundSet);
+        setFinished(true);
+        setScore({ correct: foundSet.size, total: totalBlanks });
       }
     } catch {}
   }
@@ -443,15 +487,15 @@ export default function GameClient() {
     router.push("/login");
   }
 
-  async function handleCopyChallenge() {
-    const url = buildChallengeUrl();
-    if (!url) return;
+  async function handleShare() {
+    const text = buildShareText();
+    if (!text) return;
     try {
       if (navigator.clipboard) {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(text);
       } else {
         const el = document.createElement("textarea");
-        el.value = url;
+        el.value = text;
         el.style.position = "fixed";
         el.style.opacity = "0";
         document.body.appendChild(el);
@@ -475,7 +519,8 @@ export default function GameClient() {
 
   const myPct = score && score.total > 0 ? Math.round((score.correct / score.total) * 100) : null;
   const theirPct = isChallenge ? Number(challengeScore) : null;
-  const challengeWon = myPct !== null && theirPct !== null && myPct >= theirPct;
+  const challengeTie = myPct !== null && theirPct !== null && myPct === theirPct;
+  const challengeWon = myPct !== null && theirPct !== null && myPct > theirPct;
 
   const gameContainerRef = useRef(null);
   useEffect(() => {
@@ -564,7 +609,7 @@ export default function GameClient() {
       )}
       {isDaily && !finished && !revealAll && (
         <div className="border-b border-border bg-secondary/30 px-4 py-2 text-xs text-muted-foreground text-center">
-          {t("daily.title")}
+          {t("daily.title")} · {t("daily.rule_90")}
         </div>
       )}
 
@@ -680,14 +725,50 @@ export default function GameClient() {
             autoFinishAt={midnightMs}
             isDaily={isDaily && !revealAll}
             onAbandon={isDaily && !revealAll ? () => setAbandonConfirm(true) : undefined}
+            forceReveal={forceReveal}
           />
         )}
 
         <div ref={finishedRef} />
 
-        {finished && pointsGained > 0 && (
-          <div className="flex items-center justify-center gap-1.5 py-3 text-sm font-medium text-foreground mb-1">
-            <span className="text-green-500 font-semibold tabular-nums">+{pointsGained} pts</span>
+        {finished && breakdown && !revealAll && user && (
+          <div className="border border-border bg-secondary/20 px-4 py-3 mb-4 text-xs w-full max-w-2xl">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between text-muted-foreground">
+                <span>{t("game.breakdown.uniques")}</span>
+                <span className="tabular-nums font-medium text-foreground">{breakdown.uniqueFound}</span>
+              </div>
+              {breakdown.hintedCount > 0 && (<>
+                <div className="flex justify-between text-amber-400/80">
+                  <span>{t("game.breakdown.hints")}</span>
+                  <span className="tabular-nums font-medium">−{breakdown.hintedCount}</span>
+                </div>
+                <div className="border-t border-border/50 pt-1.5 flex justify-between text-amber-400/80">
+                  <span>{t("game.breakdown.counted")}</span>
+                  <span className="tabular-nums font-medium">{breakdown.uniqueCorrect}</span>
+                </div>
+              </>)}
+              <div className={`flex justify-between text-muted-foreground ${breakdown.hintedCount === 0 ? "border-t border-border/50 pt-1.5" : ""}`}>
+                <span>{t("game.breakdown.mult")}</span>
+                <span className="tabular-nums font-medium text-foreground">×{breakdown.multiplier}</span>
+              </div>
+              <div className="border-t border-border/50 pt-1.5 flex justify-between text-muted-foreground">
+                <span>{t("game.breakdown.net")}</span>
+                <span className="tabular-nums font-medium text-foreground">{breakdown.netPoints} pts</span>
+              </div>
+              {breakdown.previousBest > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>{t("game.breakdown.prev")}</span>
+                  <span className="tabular-nums font-medium">−{breakdown.previousBest} pts</span>
+                </div>
+              )}
+              <div className="border-t border-border/50 pt-1.5 flex justify-between">
+                <span className="text-muted-foreground">{t("game.breakdown.gained")}</span>
+                <span className={`tabular-nums font-semibold ${breakdown.gained > 0 ? "text-green-500" : "text-muted-foreground"}`}>
+                  {breakdown.gained > 0 ? `+${breakdown.gained}` : breakdown.gained} pts
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -709,7 +790,7 @@ export default function GameClient() {
                 <div className="flex gap-8 text-sm tabular-nums">
                   <div className="flex flex-col items-center gap-0.5">
                     <span className="text-xl font-semibold">{myPct}%</span>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("game.challenge.you")}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{user?.name || t("game.challenge.you")}</span>
                   </div>
                   <div className="text-muted-foreground self-center text-xs">vs</div>
                   <div className="flex flex-col items-center gap-0.5">
@@ -718,7 +799,7 @@ export default function GameClient() {
                   </div>
                 </div>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                  {challengeWon ? t("game.challenge.won") : t("game.challenge.lost")}
+                  {challengeTie ? t("game.challenge.tie") : challengeWon ? t("game.challenge.won") : t("game.challenge.lost")}
                 </p>
               </div>
             )}
@@ -732,7 +813,7 @@ export default function GameClient() {
               </Link>
               {!isDaily && !revealAll && (
                 <button
-                  onClick={handleCopyChallenge}
+                  onClick={handleShare}
                   className="flex-1 border border-border px-3 py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
                 >
                   {copied ? t("game.copied") : t("game.defier")}
