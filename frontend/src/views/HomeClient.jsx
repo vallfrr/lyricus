@@ -191,13 +191,26 @@ function DailyCard({ difficulty }) {
   }
 
   function handleShowCorrection(song) {
+    let foundIds = song.found_ids; // may be null/undefined for today's challenge
+    // Fallback: read found_ids from localStorage (stored on abandon)
+    if (foundIds === null || foundIds === undefined) {
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const raw = localStorage.getItem(`lyricusDailyFoundIds_${today}`);
+        if (raw) {
+          const stored = JSON.parse(raw);
+          if (stored.artist === song.artist && stored.title === song.title) {
+            foundIds = stored.found_ids;
+          }
+        }
+      } catch {}
+    }
     const p = new URLSearchParams({ artist: song.artist, title: song.title, reveal_all: "1" });
     if (song.album) p.set("album", song.album);
     if (song.cover) p.set("cover", song.cover);
     if (song.seed != null) p.set("seed", String(song.seed));
-    // Use found_ids from backend if available (completed or abandoned)
-    if (song.found_ids !== null && song.found_ids !== undefined) {
-      p.set("found_ids", song.found_ids.join(","));
+    if (foundIds !== null && foundIds !== undefined) {
+      p.set("found_ids", foundIds.join(","));
     }
     router.push(`/game?${p}`);
   }

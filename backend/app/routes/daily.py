@@ -280,9 +280,19 @@ def _row_to_dict(row, ttl: int, preview: str = "", streak: int = 0, longest_stre
 
 async def _get_streak(pool, user_id: str) -> tuple[int, int]:
     row = await pool.fetchrow(
-        "SELECT current_streak, longest_streak FROM users WHERE id=$1", user_id
+        "SELECT current_streak, longest_streak, last_daily_date FROM users WHERE id=$1", user_id
     )
-    return (row["current_streak"] or 0, row["longest_streak"] or 0) if row else (0, 0)
+    if not row:
+        return (0, 0)
+    streak  = row["current_streak"] or 0
+    longest = row["longest_streak"] or 0
+    last    = row["last_daily_date"]
+    today     = _utc_today()
+    yesterday = today - timedelta(days=1)
+    # Streak has expired if last daily was not today or yesterday
+    if last is None or last < yesterday:
+        streak = 0
+    return (streak, longest)
 
 
 async def _maybe_mark_completed(pool, user_id: str, date, artist: str, title: str):
@@ -297,7 +307,7 @@ async def _maybe_mark_completed(pool, user_id: str, date, artist: str, title: st
     status = await pool.execute(
         """
         UPDATE daily_challenges SET completed_at = NOW(), completion_rank = $5
-        WHERE user_id = $1 AND date = $2 AND completed_at IS NULL
+        WHERE user_id = $1 AND date = $2 AND completed_at IS NULL AND abandoned_at IS NULL
           AND EXISTS (
               SELECT 1 FROM game_sessions
               WHERE user_id = $1
@@ -305,6 +315,8 @@ async def _maybe_mark_completed(pool, user_id: str, date, artist: str, title: st
                 AND LOWER(title)  = LOWER($4)
                 AND status = 'finished'
                 AND played_at >= (CURRENT_DATE AT TIME ZONE 'UTC')
+                AND score_total > 0
+                AND score_correct::float / score_total::float >= 0.9
           )
         """,
         user_id, date, artist, title, rank,

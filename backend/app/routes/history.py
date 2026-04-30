@@ -29,7 +29,7 @@ async def create_session(request):
             body = {**body, "cover": extra["cover"]}
 
     # Compute points gained BEFORE saving (session not yet in 'finished' state)
-    _, points_gained = await db.compute_points_gained(
+    song_best, points_gained = await db.compute_points_gained(
         request.app.ctx.pool, user["sub"],
         body["artist"], body["title"], body["difficulty"],
         body["score_correct"], body["score_total"],
@@ -37,7 +37,7 @@ async def create_session(request):
     )
 
     session_id = await db.save_game_session(request.app.ctx.pool, user["sub"], body)
-    return json({"id": session_id, "points_gained": points_gained}, status=201)
+    return json({"id": session_id, "points_gained": points_gained, "song_best": song_best}, status=201)
 
 
 @history_bp.get("/")
@@ -144,8 +144,9 @@ async def finish_session(request, session_id):
         "SELECT artist, title, difficulty FROM game_sessions WHERE id=$1 AND user_id=$2",
         str(session_id), user["sub"],
     )
+    song_best = 0
     if row:
-        _, points_gained = await db.compute_points_gained(
+        song_best, points_gained = await db.compute_points_gained(
             pool, user["sub"],
             row["artist"], row["title"], row["difficulty"],
             body.get("score_correct", 0), body.get("score_total", 0),
@@ -153,7 +154,7 @@ async def finish_session(request, session_id):
         )
 
     await db.finish_db_session(pool, str(session_id), user["sub"], body)
-    return json({"success": True, "points_gained": points_gained})
+    return json({"success": True, "points_gained": points_gained, "song_best": song_best})
 
 
 @history_bp.delete("/<session_id:uuid>")

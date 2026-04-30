@@ -50,7 +50,7 @@ ranked AS (
     SELECT
         u.id,
         u.name,
-        COALESCE(u.current_streak, 0)::int                    AS streak,
+        COALESCE(CASE WHEN u.last_daily_date >= CURRENT_DATE - 1 THEN u.current_streak ELSE 0 END, 0)::int AS streak,
         COALESCE(ROUND(SUM(b.song_points)), 0)::bigint        AS total_points,
         COUNT(b.song_points)::int                             AS songs,
         COALESCE(ROUND(AVG(b.song_points), 1), 0)::float      AS avg_points,
@@ -60,7 +60,7 @@ ranked AS (
     FROM users u
     JOIN best_per_song b ON b.user_id = u.id
     WHERE u.name IS NOT NULL
-    GROUP BY u.id, u.name, u.current_streak
+    GROUP BY u.id, u.name, u.current_streak, u.last_daily_date
 )
 """
 
